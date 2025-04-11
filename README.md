@@ -23,6 +23,20 @@ pip install git+https://github.com/ezWaveDev/ezsync.git
 
 ## Configuration
 
+ezSync requires an API key to communicate with the Tarana API. You have three options to configure it:
+
+### Option 1: Interactive Setup Wizard (Recommended)
+
+After installation, run the setup wizard:
+
+```bash
+ezsync --setup
+```
+
+This will guide you through setting up your API key and database credentials, saving them to a `.env` file in your current directory.
+
+### Option 2: Manual .env File
+
 Create a `.env` file in your project directory with the following variables:
 
 ```
@@ -30,12 +44,24 @@ Create a `.env` file in your project directory with the following variables:
 TARANA_API_KEY=your_api_key_here
 CPI_ID=your_cpi_id_here
 
-# Database Configuration
+# Database Configuration (optional, only needed for database operations)
 DB_HOST=your_db_host
 DB_NAME=your_db_name
 DB_USER=your_db_username
 DB_PASSWORD=your_db_password
 DB_PORT=1433
+```
+
+### Option 3: Environment Variables
+
+You can set environment variables directly in your shell:
+
+```bash
+# Linux/Mac
+export TARANA_API_KEY=your_api_key_here
+
+# Windows
+set TARANA_API_KEY=your_api_key_here
 ```
 
 ## Usage

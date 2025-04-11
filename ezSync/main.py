@@ -13,6 +13,7 @@ from ezSync.operations import (
     refurbish_radios_parallel, deploy_radio, 
     mock_test_radio, test_radios_parallel, find_fix_parallel
 )
+from ezSync.config import TARANA_API_KEY, setup_config
 
 def main():
     """
@@ -35,8 +36,39 @@ def main():
     parser.add_argument('--max-attempts', type=int, default=30, help='Maximum number of status check attempts (for --reclaim or --speedtest)')
     parser.add_argument('--parallel', action='store_true', help='Process radios in parallel (for --refurb or --test)')
     parser.add_argument('--max-workers', type=int, default=5, help='Maximum number of concurrent workers for parallel processing')
-    parser.add_argument('serial_numbers', nargs='+', help='Serial number(s) of the radio(s)')
+    parser.add_argument('--setup', action='store_true', help='Run the setup wizard to configure API keys and database connection')
+    parser.add_argument('serial_numbers', nargs='*', help='Serial number(s) of the radio(s)')
     args = parser.parse_args()
+    
+    # Run setup wizard if explicitly requested
+    if args.setup:
+        if setup_config():
+            print("Setup completed successfully!")
+            return
+        else:
+            print("Setup failed. Required configuration is missing.")
+            sys.exit(1)
+    
+    # No need to check API key for help display
+    if len(sys.argv) == 1 or (len(sys.argv) == 2 and sys.argv[1] in ['-h', '--help']):
+        parser.print_help()
+        return
+
+    # Check if we have the minimum required configuration for API operations
+    needs_api = args.status or args.delete or args.default or args.reclaim or args.refurb or args.speedtest or args.deploy
+    
+    if needs_api and not TARANA_API_KEY:
+        print("Error: TARANA_API_KEY is not set or empty")
+        print("\nUse one of the following options:")
+        print("1. Run 'ezsync --setup' to configure your API key and save it to a .env file")
+        print("2. Create a .env file in the current directory with TARANA_API_KEY=your_key_here")
+        print("3. Set the TARANA_API_KEY environment variable manually")
+        sys.exit(1)
+    
+    # Make sure serial numbers are provided when required
+    if needs_api and not args.serial_numbers:
+        print("Error: At least one serial number is required for this operation")
+        sys.exit(1)
     
     # Handle refurbishment operation
     if args.refurb:

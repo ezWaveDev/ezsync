@@ -22,6 +22,93 @@ DB_USER = os.getenv('DB_USER')
 DB_PASSWORD = os.getenv('DB_PASSWORD')
 DB_PORT = os.getenv('DB_PORT', '1433')
 
+def setup_config():
+    """
+    Check if required environment variables are set and prompt the user if they're missing.
+    Creates or updates the .env file with provided values.
+    """
+    env_file_path = os.path.join(os.getcwd(), '.env')
+    env_vars = {}
+    
+    # Load existing values if .env file exists
+    if os.path.exists(env_file_path):
+        with open(env_file_path, 'r') as f:
+            for line in f:
+                if '=' in line and not line.strip().startswith('#'):
+                    key, value = line.strip().split('=', 1)
+                    env_vars[key] = value
+    
+    # Check API configuration
+    print("\n=== Tarana API Configuration ===")
+    if not TARANA_API_KEY:
+        api_key = input("Enter your Tarana API Key: ").strip()
+        env_vars['TARANA_API_KEY'] = api_key
+        os.environ['TARANA_API_KEY'] = api_key
+        global TARANA_API_KEY
+        TARANA_API_KEY = api_key
+    
+    cpi_id = os.getenv('CPI_ID')
+    if not cpi_id:
+        cpi_id = input("Enter your CPI ID (or press Enter to skip): ").strip()
+        if cpi_id:
+            env_vars['CPI_ID'] = cpi_id
+            os.environ['CPI_ID'] = cpi_id
+    
+    # Check Database configuration - only if any DB operation is selected
+    print("\n=== Database Configuration (optional) ===")
+    print("Press Enter to skip if you don't need database connectivity.")
+    
+    if not DB_HOST:
+        db_host = input("Enter Database Host: ").strip()
+        if db_host:
+            env_vars['DB_HOST'] = db_host
+            os.environ['DB_HOST'] = db_host
+    
+    if not DB_NAME:
+        db_name = input("Enter Database Name: ").strip()
+        if db_name:
+            env_vars['DB_NAME'] = db_name
+            os.environ['DB_NAME'] = db_name
+    
+    if not DB_USER:
+        db_user = input("Enter Database Username: ").strip()
+        if db_user:
+            env_vars['DB_USER'] = db_user
+            os.environ['DB_USER'] = db_user
+    
+    if not DB_PASSWORD:
+        db_pass = input("Enter Database Password: ").strip()
+        if db_pass:
+            env_vars['DB_PASSWORD'] = db_pass
+            os.environ['DB_PASSWORD'] = db_pass
+    
+    if not DB_PORT:
+        db_port = input("Enter Database Port (default: 1433): ").strip()
+        if db_port:
+            env_vars['DB_PORT'] = db_port
+            os.environ['DB_PORT'] = db_port
+        else:
+            env_vars['DB_PORT'] = '1433'
+            os.environ['DB_PORT'] = '1433'
+    
+    # Write to .env file
+    if env_vars:
+        print(f"\nSaving configuration to {env_file_path}")
+        with open(env_file_path, 'w') as f:
+            f.write("# Tarana API Configuration\n")
+            for key in ['TARANA_API_KEY', 'CPI_ID']:
+                if key in env_vars:
+                    f.write(f"{key}={env_vars[key]}\n")
+            
+            f.write("\n# Database Configuration\n")
+            for key in ['DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD']:
+                if key in env_vars:
+                    f.write(f"{key}={env_vars[key]}\n")
+        
+        print("Configuration saved successfully! You won't need to enter these details again.\n")
+    
+    return TARANA_API_KEY is not None
+
 def get_latest_sql_driver():
     drivers = pyodbc.drivers()
     # Filter for SQL Server drivers and get the latest one
@@ -32,15 +119,15 @@ def get_latest_sql_driver():
 SQL_DRIVER = get_latest_sql_driver()
 
 # Build the connection string
-if not SQL_DRIVER:
-    raise Exception("No SQL Server driver found")
-
-DB_CONNECTION_STRING = (
-    f"DRIVER={{{SQL_DRIVER}}};"
-    f"SERVER={DB_HOST},{DB_PORT};"
-    f"DATABASE={DB_NAME};"
-    f"UID={DB_USER};"
-    f"PWD={DB_PASSWORD};"
-    "Encrypt=yes;"
-    "TrustServerCertificate=yes;"
-)
+if SQL_DRIVER:  # Only build if SQL driver is available
+    DB_CONNECTION_STRING = (
+        f"DRIVER={{{SQL_DRIVER}}};"
+        f"SERVER={DB_HOST},{DB_PORT};"
+        f"DATABASE={DB_NAME};"
+        f"UID={DB_USER};"
+        f"PWD={DB_PASSWORD};"
+        "Encrypt=yes;"
+        "TrustServerCertificate=yes;"
+    )
+else:
+    DB_CONNECTION_STRING = None

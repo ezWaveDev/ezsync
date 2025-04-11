@@ -18,7 +18,7 @@ ezSync is a command-line tool for managing Tarana radios, providing functionalit
 pip install -e .
 
 # Or install directly from Git
-pip install git+https://github.com/your-org/ezSync.git
+pip install git+https://github.com/ezWaveDev/ezsync.git
 ```
 
 ## Configuration
@@ -107,6 +107,12 @@ The ezSync package is organized into several modules:
 - **operations.py**: Implements business logic for radio operations
 - **utils.py**: Contains utility functions for formatting and calculations
 - **main.py**: Provides the command-line interface
+
+## Requirements
+
+- Python 3.6 or higher
+- ODBC Driver for SQL Server (for database connectivity)
+- Dependencies listed in requirements.txt
 
 ## License
 

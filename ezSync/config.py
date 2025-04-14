@@ -27,6 +27,7 @@ def setup_config():
     Check if required environment variables are set and prompt the user if they're missing.
     Creates or updates the .env file with provided values.
     """
+    global TARANA_API_KEY
     env_file_path = os.path.join(os.getcwd(), '.env')
     env_vars = {}
     
@@ -44,7 +45,6 @@ def setup_config():
         api_key = input("Enter your Tarana API Key: ").strip()
         env_vars['TARANA_API_KEY'] = api_key
         os.environ['TARANA_API_KEY'] = api_key
-        global TARANA_API_KEY
         TARANA_API_KEY = api_key
     
     cpi_id = os.getenv('CPI_ID')

@@ -40,15 +40,6 @@ def main():
     parser.add_argument('serial_numbers', nargs='*', help='Serial number(s) of the radio(s)')
     args = parser.parse_args()
     
-    # Run setup wizard if explicitly requested
-    if args.setup:
-        if setup_config():
-            print("Setup completed successfully!")
-            return
-        else:
-            print("Setup failed. Required configuration is missing.")
-            sys.exit(1)
-    
     # No need to check API key for help display
     if len(sys.argv) == 1 or (len(sys.argv) == 2 and sys.argv[1] in ['-h', '--help']):
         parser.print_help()
@@ -59,11 +50,25 @@ def main():
     
     if needs_api and not TARANA_API_KEY:
         print("Error: TARANA_API_KEY is not set or empty")
-        print("\nUse one of the following options:")
-        print("1. Run 'ezsync --setup' to configure your API key and save it to a .env file")
-        print("2. Create a .env file in the current directory with TARANA_API_KEY=your_key_here")
-        print("3. Set the TARANA_API_KEY environment variable manually")
-        sys.exit(1)
+        print("\nRunning setup wizard to configure your API key...")
+        if setup_config():
+            print("Setup completed successfully!")
+        else:
+            print("Setup failed. Required configuration is missing.")
+            print("\nUse one of the following options:")
+            print("1. Run 'ezsync --setup' to configure your API key and save it to a .env file")
+            print("2. Create a .env file in the current directory with TARANA_API_KEY=your_key_here")
+            print("3. Set the TARANA_API_KEY environment variable manually")
+            sys.exit(1)
+    
+    # Run setup wizard if explicitly requested
+    if args.setup:
+        if setup_config():
+            print("Setup completed successfully!")
+            return
+        else:
+            print("Setup failed. Required configuration is missing.")
+            sys.exit(1)
     
     # Make sure serial numbers are provided when required
     if needs_api and not args.serial_numbers:

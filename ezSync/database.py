@@ -6,6 +6,34 @@ This module handles all database interactions.
 import pyodbc
 from ezSync.config import DB_CONNECTION_STRING
 
+def test_connection():
+    """
+    Test the database connection using the configured connection string.
+    
+    Returns:
+        tuple: (bool, str) - Success status and message
+    """
+    if not DB_CONNECTION_STRING:
+        return False, "No database connection string configured"
+    
+    try:
+        # Try to establish a connection
+        conn = pyodbc.connect(DB_CONNECTION_STRING, timeout=10)
+        cursor = conn.cursor()
+        
+        # Run a simple query to verify connection is working
+        cursor.execute("SELECT @@VERSION")
+        version = cursor.fetchone()[0]
+        
+        cursor.close()
+        conn.close()
+        
+        return True, f"Connection successful! SQL Server version: {version}"
+    except pyodbc.Error as e:
+        return False, f"Database connection error: {str(e)}"
+    except Exception as e:
+        return False, f"Unexpected error: {str(e)}"
+
 def get_customer_info(serial_number):
     """
     Retrieve customer information from the database based on the device serial number.

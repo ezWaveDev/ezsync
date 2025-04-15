@@ -109,6 +109,9 @@ ezsync --refurb <serial_number1> [serial_number2 ...]
 
 # Configure radio for customer deployment (requires database configuration)
 ezsync --deploy <serial_number>
+
+# Test database connectivity
+ezsync --test-db
 ```
 
 ### Advanced Options
@@ -122,6 +125,31 @@ ezsync --speedtest --verbose <serial_number>
 
 # Refurbish multiple radios in parallel
 ezsync --refurb --parallel --max-workers 10 <serial_number1> <serial_number2> <serial_number3> ...
+```
+
+### Troubleshooting Database Connectivity
+
+If you're experiencing database connection issues when using the `--deploy` command, try the following:
+
+1. Test your database connection:
+   ```bash
+   ezsync --test-db
+   ```
+
+2. Check your database configuration:
+   ```bash
+   ezsync --setup
+   ```
+   
+3. Common connection issues:
+   - **Login timeout expired**: Check if you can reach the database server (firewall, VPN, etc.)
+   - **Cannot open database**: Verify the database name is correct
+   - **Login failed**: Verify your username and password
+   - **Driver error**: Make sure you've installed the Microsoft ODBC Driver for SQL Server
+
+For more troubleshooting, check if your connection string is correct:
+```bash
+cat ~/.config/ezsync/.env
 ```
 
 ### Parallel Processing

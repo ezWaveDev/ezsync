@@ -33,11 +33,19 @@ After installation, run the setup wizard:
 ezsync --setup
 ```
 
-This will guide you through setting up your API key and database credentials, saving them to a `.env` file in your current directory.
+This will guide you through setting up your API key and database credentials. The configuration will be saved in:
+- `~/.config/ezsync/.env` (preferred location)
+- Or in the current directory's `.env` file (fallback if the user directory isn't writable)
+
+The tool will automatically detect and use your configuration from either location on subsequent runs.
 
 ### Option 2: Manual .env File
 
-Create a `.env` file in your project directory with the following variables:
+Create a `.env` file in either:
+- `~/.config/ezsync/` directory (recommended)
+- Or your project directory
+
+With the following variables:
 
 ```
 # API Configuration

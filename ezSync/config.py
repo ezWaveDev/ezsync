@@ -90,6 +90,7 @@ def setup_config():
     
     # Check API configuration
     print("\n=== Tarana API Configuration ===")
+    print("API Key is required for all operations.")
     if not TARANA_API_KEY:
         api_key = input("Enter your Tarana API Key: ").strip()
         env_vars['TARANA_API_KEY'] = api_key
@@ -103,42 +104,65 @@ def setup_config():
             env_vars['CPI_ID'] = cpi_id
             os.environ['CPI_ID'] = cpi_id
     
-    # Check Database configuration - only if any DB operation is selected
-    print("\n=== Database Configuration (optional) ===")
-    print("Press Enter to skip if you don't need database connectivity.")
+    # Check if deploy command will be used
+    print("\n=== Database Configuration ===")
+    print("Required for the '--deploy' command which retrieves customer information.")
     
-    if not DB_HOST:
-        db_host = input("Enter Database Host: ").strip()
-        if db_host:
-            env_vars['DB_HOST'] = db_host
-            os.environ['DB_HOST'] = db_host
+    use_database = input("Will you be using the '--deploy' command? (y/n): ").strip().lower()
     
-    if not DB_NAME:
-        db_name = input("Enter Database Name: ").strip()
-        if db_name:
-            env_vars['DB_NAME'] = db_name
-            os.environ['DB_NAME'] = db_name
-    
-    if not DB_USER:
-        db_user = input("Enter Database Username: ").strip()
-        if db_user:
-            env_vars['DB_USER'] = db_user
-            os.environ['DB_USER'] = db_user
-    
-    if not DB_PASSWORD:
-        db_pass = input("Enter Database Password: ").strip()
-        if db_pass:
-            env_vars['DB_PASSWORD'] = db_pass
-            os.environ['DB_PASSWORD'] = db_pass
-    
-    if not DB_PORT:
-        db_port = input("Enter Database Port (default: 1433): ").strip()
-        if db_port:
-            env_vars['DB_PORT'] = db_port
-            os.environ['DB_PORT'] = db_port
-        else:
-            env_vars['DB_PORT'] = '1433'
-            os.environ['DB_PORT'] = '1433'
+    if use_database == 'y' or use_database == 'yes':
+        print("\nDatabase configuration is required for deployment operations.")
+        
+        if not DB_HOST:
+            while True:
+                db_host = input("Enter Database Host: ").strip()
+                if db_host:
+                    env_vars['DB_HOST'] = db_host
+                    os.environ['DB_HOST'] = db_host
+                    break
+                else:
+                    print("Database Host is required. Please enter a value.")
+        
+        if not DB_NAME:
+            while True:
+                db_name = input("Enter Database Name: ").strip()
+                if db_name:
+                    env_vars['DB_NAME'] = db_name
+                    os.environ['DB_NAME'] = db_name
+                    break
+                else:
+                    print("Database Name is required. Please enter a value.")
+        
+        if not DB_USER:
+            while True:
+                db_user = input("Enter Database Username: ").strip()
+                if db_user:
+                    env_vars['DB_USER'] = db_user
+                    os.environ['DB_USER'] = db_user
+                    break
+                else:
+                    print("Database Username is required. Please enter a value.")
+        
+        if not DB_PASSWORD:
+            while True:
+                db_pass = input("Enter Database Password: ").strip()
+                if db_pass:
+                    env_vars['DB_PASSWORD'] = db_pass
+                    os.environ['DB_PASSWORD'] = db_pass
+                    break
+                else:
+                    print("Database Password is required. Please enter a value.")
+        
+        if not DB_PORT:
+            db_port = input("Enter Database Port (default: 1433): ").strip()
+            if db_port:
+                env_vars['DB_PORT'] = db_port
+                os.environ['DB_PORT'] = db_port
+            else:
+                env_vars['DB_PORT'] = '1433'
+                os.environ['DB_PORT'] = '1433'
+    else:
+        print("\nSkipping database configuration. Note that the '--deploy' command won't work.")
     
     # Write to .env file
     if env_vars:

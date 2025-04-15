@@ -10,6 +10,7 @@ ezSync is a command-line tool for managing Tarana radios, providing functionalit
 - **Radio Reclaiming**: Reset and reclaim radios
 - **Radio Refurbishment**: Complete workflow for refurbishing radios
 - **Radio Deletion**: Remove radios from the system
+- **Customer Deployment**: Configure radios for customer deployment using database information
 
 ## Installation
 
@@ -23,7 +24,7 @@ pip install git+https://github.com/ezWaveDev/ezsync.git
 
 ## Configuration
 
-ezSync requires an API key to communicate with the Tarana API. You have three options to configure it:
+ezSync requires an API key to communicate with the Tarana API. The `--deploy` command additionally requires database configuration. You have three options to configure these:
 
 ### Option 1: Interactive Setup Wizard (Recommended)
 
@@ -48,11 +49,11 @@ Create a `.env` file in either:
 With the following variables:
 
 ```
-# API Configuration
+# API Configuration (required for all operations)
 TARANA_API_KEY=your_api_key_here
 CPI_ID=your_cpi_id_here
 
-# Database Configuration (optional, only needed for database operations)
+# Database Configuration (required for --deploy command)
 DB_HOST=your_db_host
 DB_NAME=your_db_name
 DB_USER=your_db_username
@@ -67,9 +68,17 @@ You can set environment variables directly in your shell:
 ```bash
 # Linux/Mac
 export TARANA_API_KEY=your_api_key_here
+export DB_HOST=your_db_host
+export DB_NAME=your_db_name
+export DB_USER=your_db_username
+export DB_PASSWORD=your_db_password
 
 # Windows
 set TARANA_API_KEY=your_api_key_here
+set DB_HOST=your_db_host
+set DB_NAME=your_db_name
+set DB_USER=your_db_username
+set DB_PASSWORD=your_db_password
 ```
 
 ## Usage
@@ -98,7 +107,7 @@ ezsync --reclaim <serial_number1> [serial_number2 ...]
 # Refurbish radios
 ezsync --refurb <serial_number1> [serial_number2 ...]
 
-# Configure radio for customer deployment using database information
+# Configure radio for customer deployment (requires database configuration)
 ezsync --deploy <serial_number>
 ```
 

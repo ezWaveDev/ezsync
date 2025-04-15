@@ -1,31 +1,9 @@
 import os
 import pyodbc
 from dotenv import load_dotenv
-import sys
-from pathlib import Path
 
-# Define the configuration directory paths
-USER_CONFIG_DIR = os.path.join(str(Path.home()), '.config', 'ezsync')
-USER_CONFIG_FILE = os.path.join(USER_CONFIG_DIR, '.env')
-LOCAL_CONFIG_FILE = os.path.join(os.getcwd(), '.env')
-
-# Try to load environment variables from the user config directory first,
-# then fall back to the local directory
-config_loaded = False
-
-# First try user config directory
-if os.path.exists(USER_CONFIG_FILE):
-    load_dotenv(USER_CONFIG_FILE)
-    config_loaded = True
-
-# Then try local directory
-if not config_loaded and os.path.exists(LOCAL_CONFIG_FILE):
-    load_dotenv(LOCAL_CONFIG_FILE)
-    config_loaded = True
-
-# Otherwise, just try to load from any .env in the current directory
-if not config_loaded:
-    load_dotenv()
+# Load environment variables
+load_dotenv()
 
 # Tarana API Configuration
 TARANA_API_BASE_URL = "https://api.trial.cloud.taranawireless.com"
@@ -44,40 +22,13 @@ DB_USER = os.getenv('DB_USER')
 DB_PASSWORD = os.getenv('DB_PASSWORD')
 DB_PORT = os.getenv('DB_PORT', '1433')
 
-def get_config_file_path():
-    """
-    Determine the best location to store the configuration file.
-    Tries to use the user config directory first, falls back to local directory.
-    """
-    # Try to create the user config directory if it doesn't exist
-    try:
-        if not os.path.exists(USER_CONFIG_DIR):
-            os.makedirs(USER_CONFIG_DIR, exist_ok=True)
-        # Test if we can write to the directory
-        test_file = os.path.join(USER_CONFIG_DIR, '.write_test')
-        with open(test_file, 'w') as f:
-            f.write('test')
-        os.remove(test_file)
-        return USER_CONFIG_FILE
-    except (PermissionError, OSError):
-        # Fall back to local directory if we can't write to user config dir
-        return LOCAL_CONFIG_FILE
-
 def setup_config():
     """
     Check if required environment variables are set and prompt the user if they're missing.
     Creates or updates the .env file with provided values.
     """
     global TARANA_API_KEY
-    
-    # Determine the best config file location
-    env_file_path = get_config_file_path()
-    
-    # Create directory if it doesn't exist (for the local case)
-    os.makedirs(os.path.dirname(env_file_path) or '.', exist_ok=True)
-    
-    print(f"\nConfiguration will be saved to: {env_file_path}")
-    
+    env_file_path = os.path.join(os.getcwd(), '.env')
     env_vars = {}
     
     # Load existing values if .env file exists
@@ -90,7 +41,6 @@ def setup_config():
     
     # Check API configuration
     print("\n=== Tarana API Configuration ===")
-    print("API Key is required for all operations.")
     if not TARANA_API_KEY:
         api_key = input("Enter your Tarana API Key: ").strip()
         env_vars['TARANA_API_KEY'] = api_key
@@ -104,84 +54,59 @@ def setup_config():
             env_vars['CPI_ID'] = cpi_id
             os.environ['CPI_ID'] = cpi_id
     
-    # Check if deploy command will be used
+    # Database configuration
     print("\n=== Database Configuration ===")
-    print("Required for the '--deploy' command which retrieves customer information.")
+    print("These settings are required for the '--deploy' command.")
     
-    use_database = input("Will you be using the '--deploy' command? (y/n): ").strip().lower()
+    if not DB_HOST:
+        db_host = input("Database Host/IP: ").strip()
+        if db_host:
+            env_vars['DB_HOST'] = db_host
+            os.environ['DB_HOST'] = db_host
     
-    if use_database == 'y' or use_database == 'yes':
-        print("\nDatabase configuration is required for deployment operations.")
-        
-        if not DB_HOST:
-            while True:
-                db_host = input("Enter Database Host: ").strip()
-                if db_host:
-                    env_vars['DB_HOST'] = db_host
-                    os.environ['DB_HOST'] = db_host
-                    break
-                else:
-                    print("Database Host is required. Please enter a value.")
-        
-        if not DB_NAME:
-            while True:
-                db_name = input("Enter Database Name: ").strip()
-                if db_name:
-                    env_vars['DB_NAME'] = db_name
-                    os.environ['DB_NAME'] = db_name
-                    break
-                else:
-                    print("Database Name is required. Please enter a value.")
-        
-        if not DB_USER:
-            while True:
-                db_user = input("Enter Database Username: ").strip()
-                if db_user:
-                    env_vars['DB_USER'] = db_user
-                    os.environ['DB_USER'] = db_user
-                    break
-                else:
-                    print("Database Username is required. Please enter a value.")
-        
-        if not DB_PASSWORD:
-            while True:
-                db_pass = input("Enter Database Password: ").strip()
-                if db_pass:
-                    env_vars['DB_PASSWORD'] = db_pass
-                    os.environ['DB_PASSWORD'] = db_pass
-                    break
-                else:
-                    print("Database Password is required. Please enter a value.")
-        
-        if not DB_PORT:
-            db_port = input("Enter Database Port (default: 1433): ").strip()
-            if db_port:
-                env_vars['DB_PORT'] = db_port
-                os.environ['DB_PORT'] = db_port
-            else:
-                env_vars['DB_PORT'] = '1433'
-                os.environ['DB_PORT'] = '1433'
-    else:
-        print("\nSkipping database configuration. Note that the '--deploy' command won't work.")
+    if not DB_NAME:
+        db_name = input("Database Name: ").strip()
+        if db_name:
+            env_vars['DB_NAME'] = db_name
+            os.environ['DB_NAME'] = db_name
+    
+    if not DB_USER:
+        db_user = input("Database Username: ").strip()
+        if db_user:
+            env_vars['DB_USER'] = db_user
+            os.environ['DB_USER'] = db_user
+    
+    if not DB_PASSWORD:
+        db_pass = input("Database Password: ").strip()
+        if db_pass:
+            env_vars['DB_PASSWORD'] = db_pass
+            os.environ['DB_PASSWORD'] = db_pass
+    
+    if not DB_PORT:
+        db_port = input("Database Port (default: 1433): ").strip()
+        if db_port:
+            env_vars['DB_PORT'] = db_port
+            os.environ['DB_PORT'] = db_port
+        else:
+            env_vars['DB_PORT'] = '1433'
+            os.environ['DB_PORT'] = '1433'
     
     # Write to .env file
     if env_vars:
-        try:
-            with open(env_file_path, 'w') as f:
-                f.write("# Tarana API Configuration\n")
-                for key in ['TARANA_API_KEY', 'CPI_ID']:
-                    if key in env_vars:
-                        f.write(f"{key}={env_vars[key]}\n")
-                
-                f.write("\n# Database Configuration\n")
-                for key in ['DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD']:
-                    if key in env_vars:
-                        f.write(f"{key}={env_vars[key]}\n")
+        print(f"\nSaving configuration to {env_file_path}")
+        with open(env_file_path, 'w') as f:
+            f.write("# Tarana API Configuration\n")
+            for key in ['TARANA_API_KEY', 'CPI_ID']:
+                if key in env_vars:
+                    f.write(f"{key}={env_vars[key]}\n")
             
-            print(f"Configuration saved successfully to {env_file_path}!\n")
-        except (PermissionError, OSError) as e:
-            print(f"Error saving configuration to {env_file_path}: {str(e)}")
-            print("Your configuration will be used for this session but won't be saved.")
+            f.write("\n# Database Configuration\n")
+            for key in ['DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD']:
+                if key in env_vars:
+                    f.write(f"{key}={env_vars[key]}\n")
+        
+        print("Configuration saved successfully!")
+        print("You can test your database connection with: ezsync --test-db")
     
     return TARANA_API_KEY is not None
 

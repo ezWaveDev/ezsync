@@ -138,7 +138,17 @@ The ezSync package is organized into several modules:
 
 - Python 3.6 or higher
 - ODBC Driver for SQL Server (for database connectivity)
+- unixODBC (required for pyodbc on macOS/Linux systems)
 - Dependencies listed in requirements.txt
+
+### System Prerequisites
+
+#### macOS
+```bash
+# Install unixODBC using Homebrew
+brew install unixodbc
+```
+
 
 ## License
 

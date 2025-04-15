@@ -5,6 +5,7 @@ This module handles all database interactions.
 
 import pyodbc
 from ezSync.config import DB_CONNECTION_STRING
+import socket
 
 def test_connection():
     """
@@ -16,9 +17,43 @@ def test_connection():
     if not DB_CONNECTION_STRING:
         return False, "No database connection string configured"
     
+    # Extract server info from connection string for diagnostics
+    server_info = None
+    port = "1433"  # Default SQL Server port
+    
+    # Parse the connection string to extract server and port
+    for part in DB_CONNECTION_STRING.split(';'):
+        if part.strip().lower().startswith('server='):
+            server_parts = part.split('=')[1].split(',')
+            server_info = server_parts[0]
+            if len(server_parts) > 1:
+                port = server_parts[1]
+    
+    if not server_info:
+        return False, "Could not parse server information from connection string"
+    
+    print(f"Testing connection to: {server_info} on port {port}")
+    
+    # Try to do a socket connection test first
     try:
-        # Try to establish a connection
-        conn = pyodbc.connect(DB_CONNECTION_STRING, timeout=10)
+        socket_test = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        socket_test.settimeout(5)  # 5 second timeout
+        result = socket_test.connect_ex((server_info, int(port)))
+        socket_test.close()
+        
+        if result != 0:
+            return False, f"Cannot establish TCP connection to {server_info}:{port}. Server may be unreachable or port might be blocked."
+        else:
+            print(f"TCP connection test successful to {server_info}:{port}")
+    except socket.gaierror:
+        return False, f"Hostname resolution failed for {server_info}. Check if the server name is correct."
+    except Exception as e:
+        print(f"Socket test warning: {str(e)}")
+    
+    # Now try the database connection
+    try:
+        print("Attempting to connect to database (timeout: 15 seconds)...")
+        conn = pyodbc.connect(DB_CONNECTION_STRING, timeout=15)
         cursor = conn.cursor()
         
         # Run a simple query to verify connection is working

@@ -164,8 +164,12 @@ The ezSync package is organized into several modules:
 ```bash
 # Install unixODBC using Homebrew
 brew install unixodbc
-```
 
+# Install Microsoft ODBC Driver for SQL Server
+brew tap microsoft/mssql-release https://github.com/Microsoft/homebrew-mssql-release
+brew update
+brew install msodbcsql17 mssql-tools
+```
 
 ## License
 

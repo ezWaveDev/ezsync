@@ -702,7 +702,7 @@ def get_radio_firmware_version(serial_number):
     print(f"Could not determine firmware version for radio {serial_number}")
     return None
 
-def upgrade_radio_firmware(serial_number, package_id=None, activate=True, factory=True):
+def upgrade_radio_firmware(serial_number, package_id=None, activate=True, factory=False):
     """
     Upgrade a radio's firmware.
     
@@ -710,7 +710,7 @@ def upgrade_radio_firmware(serial_number, package_id=None, activate=True, factor
         serial_number (str): The serial number of the radio
         package_id (str): The ID of the firmware package to use
         activate (bool): Whether to activate the firmware after installation
-        factory (bool): Whether to perform a factory reset
+        factory (bool): Whether to perform a factory reset (default: False)
         
     Returns:
         object: Result object with 'success' (bool) and 'skipped' (bool) flags

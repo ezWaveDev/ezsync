@@ -73,3 +73,72 @@ def calculate_average_speed_test_results(results):
             avg_results[key] = value
     
     return avg_results
+
+def parse_speed_test_results(output_text):
+    """
+    Parse speed test results from the captured output text.
+    
+    Args:
+        output_text (str): The captured stdout from a refurbishment run
+        
+    Returns:
+        list: List of speed test result dictionaries
+    """
+    import re
+    
+    results = []
+    test_data = {}
+    in_test_section = False
+    current_test = None
+    
+    # Look for the speed test results section
+    lines = output_text.splitlines()
+    for i, line in enumerate(lines):
+        if "INDIVIDUAL TESTS" in line:
+            in_test_section = True
+            continue
+            
+        if in_test_section:
+            # Look for test number at the beginning of a result line
+            test_match = re.match(r'^\s*(\d+)\s*\|\s*([\d\.]+)\s*\|\s*([\d\.]+)\s*\|\s*([\d\.]+)\s*\|\s*([\d\.]+)\s*\|\s*([\d\.]+)\s*\|\s*([\d\.]+)\s*\|\s*([\d\.]+)', line)
+            if test_match:
+                # Test number starts from 1
+                test_num = int(test_match.group(1)) - 1
+                
+                # If we already have data for this test and we encounter a new test,
+                # add the previous test to results
+                if current_test is not None and current_test != test_num and test_data:
+                    results.append(test_data)
+                    test_data = {}
+                
+                current_test = test_num
+                
+                # Extract test data
+                dl = float(test_match.group(2)) * 1000  # Convert back to kbps
+                ul = float(test_match.group(3)) * 1000  # Convert back to kbps
+                latency = float(test_match.group(4))
+                dl_snr = float(test_match.group(5))
+                ul_snr = float(test_match.group(6))
+                path_loss = float(test_match.group(7))
+                rf_dist = float(test_match.group(8))
+                
+                # Create a result dict similar to what the API returns
+                test_data = {
+                    'downlinkThroughput': dl,
+                    'uplinkThroughput': ul,
+                    'latencyMillis': latency,
+                    'downlinkSnr': dl_snr,
+                    'uplinkSnr': ul_snr,
+                    'pathloss': path_loss,
+                    'rfLinkDistance': rf_dist
+                }
+                
+                # Add to results
+                results.append(test_data)
+            
+            # Exit when we reach a line indicating the end of test results
+            elif "REFURBISHMENT SUMMARY" in line:
+                in_test_section = False
+                break
+    
+    return results

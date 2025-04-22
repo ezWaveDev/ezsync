@@ -328,12 +328,13 @@ def run_speed_tests(serial_number, num_tests=3, interval=60, max_attempts=10):
     
     return avg_results
 
-def refurbish_radio(serial_number):
+def refurbish_radio(serial_number, skip_speedtest=False):
     """
     Perform the full refurbishment process on a radio.
     
     Args:
         serial_number (str): The serial number of the radio
+        skip_speedtest (bool): Whether to skip the speed test step
         
     Returns:
         bool: True if all operations were successful, False otherwise
@@ -375,18 +376,22 @@ def refurbish_radio(serial_number):
         print(f"Radio {serial_number} did not reconnect after reboot")
         return False
     
-    # Add a 1-minute settling period before starting speed tests
-    settling_time = 60  # 1 minute in seconds (changed from 2 minutes)
-    print(f"\nRadio reconnected successfully. Allowing {settling_time} seconds for connection to stabilize before running speed tests...")
-    time.sleep(settling_time)
-    print("Settling period complete. Proceeding with speed tests.")
-    
-    # Step 6: Run speed tests
-    print(f"Running speed tests for radio {serial_number}")
-    speed_test_results = run_speed_tests(serial_number, num_tests=3, interval=60, max_attempts=10)
-    if not speed_test_results:
-        print(f"Failed to complete speed tests for radio {serial_number}")
-        return False
+    # Only run speed tests if not skipped
+    if not skip_speedtest:
+        # Add a 1-minute settling period before starting speed tests
+        settling_time = 60  # 1 minute in seconds
+        print(f"\nRadio reconnected successfully. Allowing {settling_time} seconds for connection to stabilize before running speed tests...")
+        time.sleep(settling_time)
+        print("Settling period complete. Proceeding with speed tests.")
+        
+        # Step 6: Run speed tests
+        print(f"Running speed tests for radio {serial_number}")
+        speed_test_results = run_speed_tests(serial_number, num_tests=3, interval=60, max_attempts=10)
+        if not speed_test_results:
+            print(f"Failed to complete speed tests for radio {serial_number}")
+            return False
+    else:
+        print("\nSkipping speed tests as requested.")
     
     # Step 7: Apply final default configuration with REFURBISHED hostname
     print(f"Applying final configuration with REFURBISHED hostname")
@@ -398,28 +403,35 @@ def refurbish_radio(serial_number):
     return True
 
 # Module-level function for multiprocessing refurbishment
-def mp_refurbish_radio(serial_number):
+def mp_refurbish_radio(args):
     """
     Module-level worker function for refurbishment using multiprocessing.
     This needs to be at the module level to be picklable.
     
     Args:
-        serial_number (str): The serial number of the radio to refurbish
+        args (tuple): (serial_number, skip_speedtest)
         
     Returns:
         tuple: (serial_number, success)
     """
+    # Unpack arguments
+    if isinstance(args, tuple) and len(args) > 1:
+        serial_number, skip_speedtest = args
+    else:
+        serial_number = args
+        skip_speedtest = False
+    
     # Print process info
     import os
     print(f"[Process {os.getpid()}] Refurbishing {serial_number}")
     
     # Call the actual refurbishment function
-    success = refurbish_radio(serial_number)
+    success = refurbish_radio(serial_number, skip_speedtest=skip_speedtest)
     
     # Return both the serial number and success status
     return (serial_number, success)
 
-def refurbish_radios_parallel(serial_numbers, max_workers=5):
+def refurbish_radios_parallel(serial_numbers, max_workers=5, skip_speedtest=False):
     """
     Perform parallel refurbishment on multiple radios simultaneously
     using multiprocessing for reliable process management and clean exit.
@@ -427,6 +439,7 @@ def refurbish_radios_parallel(serial_numbers, max_workers=5):
     Args:
         serial_numbers (list): List of serial numbers to process
         max_workers (int): Maximum number of concurrent refurbishment operations
+        skip_speedtest (bool): Whether to skip the speed test step
         
     Returns:
         dict: Summary of results with successful and failed operations
@@ -445,8 +458,11 @@ def refurbish_radios_parallel(serial_numbers, max_workers=5):
             # Map all serial numbers to the module-level worker function
             print(f"Processing {len(serial_numbers)} radios, this may take some time...")
             
+            # Create a list of tuples (serial_number, skip_speedtest) for each radio
+            radio_args = [(sn, skip_speedtest) for sn in serial_numbers]
+            
             # Process all radios using the module-level worker function
-            results_list = pool.map(mp_refurbish_radio, serial_numbers)
+            results_list = pool.map(mp_refurbish_radio, radio_args)
             
             # Organize results
             success_list = []

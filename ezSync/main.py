@@ -14,7 +14,6 @@ from ezSync.operations import (
     mock_test_radio, test_radios_parallel, find_fix_parallel
 )
 from ezSync.config import TARANA_API_KEY, setup_config
-from ezSync.database import test_connection
 
 def main():
     """
@@ -32,13 +31,13 @@ def main():
     parser.add_argument('--deploy', action='store_true', help='Configure radio for customer deployment using database information')
     parser.add_argument('--test', action='store_true', help='Run a mock test to verify parallel functionality')
     parser.add_argument('--findfix', action='store_true', help='Test multiple approaches to fix threading issues')
-    parser.add_argument('--test-db', action='store_true', help='Test database connection')
     parser.add_argument('--verbose', action='store_true', help='Show detailed debug information')
     parser.add_argument('--check-interval', type=int, default=20, help='Time in seconds between status checks (for --reclaim or --speedtest)')
     parser.add_argument('--max-attempts', type=int, default=30, help='Maximum number of status check attempts (for --reclaim or --speedtest)')
     parser.add_argument('--parallel', action='store_true', help='Process radios in parallel (for --refurb or --test)')
     parser.add_argument('--max-workers', type=int, default=5, help='Maximum number of concurrent workers for parallel processing')
     parser.add_argument('--setup', action='store_true', help='Run the setup wizard to configure API keys and database connection')
+    parser.add_argument('--skip-speedtest', action='store_true', help='Skip speed tests during refurbishment process')
     parser.add_argument('serial_numbers', nargs='*', help='Serial number(s) of the radio(s)')
     args = parser.parse_args()
     
@@ -72,17 +71,6 @@ def main():
             print("Setup failed. Required configuration is missing.")
             sys.exit(1)
     
-    # Test database connection if requested
-    if args.test_db:
-        print("\n=== Testing Database Connection ===")
-        success, message = test_connection()
-        print(message)
-        if not success:
-            print("\nDatabase connection failed. Check your settings and try again.")
-            print("Use 'ezsync --setup' to reconfigure database settings.")
-            sys.exit(1)
-        return
-    
     # Make sure serial numbers are provided when required
     if needs_api and not args.serial_numbers:
         print("Error: At least one serial number is required for this operation")
@@ -93,17 +81,22 @@ def main():
         if args.parallel:
             # Process radios in parallel
             print(f"Running refurbishment process in parallel with {args.max_workers} workers")
-            results = refurbish_radios_parallel(args.serial_numbers, max_workers=args.max_workers)
+            if args.skip_speedtest:
+                print("Speed tests will be skipped during refurbishment")
+            results = refurbish_radios_parallel(args.serial_numbers, max_workers=args.max_workers, skip_speedtest=args.skip_speedtest)
             # The function handles its own output including the summary
         else:
             # Process radios sequentially (original behavior)
             success_count = 0
             failure_count = 0
             
+            if args.skip_speedtest:
+                print("Speed tests will be skipped during refurbishment")
+                
             for serial_number in args.serial_numbers:
                 print(f"\n{'='*20} REFURBISHING RADIO: {serial_number} {'='*20}")
                 
-                if refurbish_radio(serial_number):
+                if refurbish_radio(serial_number, skip_speedtest=args.skip_speedtest):
                     success_count += 1
                 else:
                     failure_count += 1

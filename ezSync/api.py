@@ -227,7 +227,7 @@ def apply_default_config(serial_number, custom_hostname=None):
         "hostName": hostname,
         "latitude": 0,
         "longitude": 0,
-        "dataVlan": 0,
+        "dataVlan": "",
         "primaryBn": "",
         "heightAgl": 0,
         "tilt": 0,

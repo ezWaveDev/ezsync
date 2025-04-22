@@ -713,18 +713,27 @@ def upgrade_radio_firmware(serial_number, package_id=None, activate=True, factor
         factory (bool): Whether to perform a factory reset
         
     Returns:
-        bool: True if successful, False otherwise
+        object: Result object with 'success' (bool) and 'skipped' (bool) flags
     """
+    # Create a result object
+    class UpgradeResult:
+        def __init__(self, success=False, skipped=False):
+            self.success = success
+            self.skipped = skipped
+        
+        def __bool__(self):
+            return self.success
+    
     if not TARANA_API_KEY:
         print("Error: TARANA_API_KEY is not set or empty")
-        return False
+        return UpgradeResult(success=False)
     
     # If no package_id provided, get the latest stable
     if not package_id:
         latest_firmware = get_latest_stable_firmware()
         if not latest_firmware:
             print("Error: Could not determine latest stable firmware")
-            return False
+            return UpgradeResult(success=False)
         package_id = latest_firmware.get('id')
         print(f"Using latest stable firmware: {package_id}")
     
@@ -738,7 +747,7 @@ def upgrade_radio_firmware(serial_number, package_id=None, activate=True, factor
         if current_firmware in package_id:
             print(f"Radio {serial_number} is already running firmware {current_firmware}")
             print(f"Skipping firmware upgrade as the target version appears to be already installed")
-            return True
+            return UpgradeResult(success=True, skipped=True)
     
     headers = get_api_headers()
     
@@ -785,21 +794,21 @@ def upgrade_radio_firmware(serial_number, package_id=None, activate=True, factor
                         # Check for specific error conditions
                         if "Software could not be installed" in error_message and "it is currently active" in error_message:
                             print(f"Radio is already running the target firmware version")
-                            return True
+                            return UpgradeResult(success=True, skipped=True)
                         
                         print(f"Error in firmware upgrade response: {error_message}")
-                        return False
+                        return UpgradeResult(success=False)
             except json.JSONDecodeError:
                 # If we can't parse the JSON, just continue as if it was successful
                 pass
                 
             print(f"Firmware upgrade initiated successfully")
-            return True
+            return UpgradeResult(success=True, skipped=False)
             
-        return False
+        return UpgradeResult(success=False)
         
     except requests.exceptions.RequestException as e:
         print(f"Upgrade request failed: {str(e)}")
         if hasattr(e, 'response') and e.response is not None:
             print(f"Error details: {e.response.text}")
-        return False
+        return UpgradeResult(success=False)

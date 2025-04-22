@@ -583,3 +583,163 @@ def reboot_radio(serial_number):
         if hasattr(e, 'response') and e.response is not None:
             print(f"Error details: {e.response.text}")
         return False
+
+def get_available_firmware_packages(rn_compatible=True, bn_compatible=False):
+    """
+    Get a list of available firmware packages from the Tarana API.
+    
+    Args:
+        rn_compatible (bool): Filter for RN-compatible packages
+        bn_compatible (bool): Filter for BN-compatible packages
+        
+    Returns:
+        list: List of firmware package objects or None if error
+    """
+    if not TARANA_API_KEY:
+        print("Error: TARANA_API_KEY is not set or empty")
+        return None
+    
+    headers = get_api_headers()
+    
+    # Use the v1 endpoint directly
+    firmware_endpoint = f"https://api.trial.cloud.taranawireless.com/v1/network/radios/software-packages"
+    
+    # Add query parameters
+    params = {
+        "rnCompatible": str(rn_compatible).lower(),
+        "bnCompatible": str(bn_compatible).lower(),
+        "sortOrder": "DESC",
+        "offset": 0,
+        "limit": 10
+    }
+    
+    try:
+        print(f"Fetching available firmware packages...")
+        response = requests.get(
+            firmware_endpoint,
+            headers=headers,
+            params=params,
+            verify=False
+        )
+        
+        if response.status_code != 200:
+            print(f"API Response Status: {response.status_code}")
+            print(f"API Response Text: {response.text}")
+            return None
+        
+        # Parse the response
+        response_data = response.json()
+        
+        # Check if we have valid data
+        if 'data' not in response_data or 'items' not in response_data['data']:
+            print("Error: Invalid response format from firmware API")
+            print(f"Response: {response_data}")
+            return None
+            
+        # Return the list of firmware packages
+        return response_data['data']['items']
+        
+    except requests.exceptions.RequestException as e:
+        print(f"Request failed: {str(e)}")
+        if hasattr(e, 'response') and e.response is not None:
+            print(f"Error details: {e.response.text}")
+        return None
+
+def get_latest_stable_firmware():
+    """
+    Get the latest stable firmware package for RNs.
+    
+    Returns:
+        dict: Firmware package information or None if not found
+    """
+    packages = get_available_firmware_packages(rn_compatible=True, bn_compatible=False)
+    
+    if not packages:
+        print("No firmware packages found")
+        return None
+    
+    # Find packages with "Stable" tag
+    stable_packages = []
+    for package in packages:
+        if 'tags' in package:
+            for tag in package.get('tags', []):
+                if tag.get('name') == 'Stable':
+                    stable_packages.append(package)
+                    break
+    
+    if not stable_packages:
+        print("No stable firmware packages found")
+        return None
+    
+    # The packages are already sorted by date (DESC) from the API
+    # So the first stable package is the latest one
+    latest_stable = stable_packages[0]
+    
+    print(f"Found latest stable firmware: {latest_stable.get('id')}")
+    return latest_stable
+
+def upgrade_radio_firmware(serial_number, package_id=None, activate=True, factory=True):
+    """
+    Upgrade a radio's firmware.
+    
+    Args:
+        serial_number (str): The serial number of the radio
+        package_id (str): The ID of the firmware package to use
+        activate (bool): Whether to activate the firmware after installation
+        factory (bool): Whether to perform a factory reset
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    if not TARANA_API_KEY:
+        print("Error: TARANA_API_KEY is not set or empty")
+        return False
+    
+    # If no package_id provided, get the latest stable
+    if not package_id:
+        latest_firmware = get_latest_stable_firmware()
+        if not latest_firmware:
+            print("Error: Could not determine latest stable firmware")
+            return False
+        package_id = latest_firmware.get('id')
+        print(f"Using latest stable firmware: {package_id}")
+    
+    headers = get_api_headers()
+    
+    # Use the v1 endpoint directly
+    upgrade_endpoint = "https://api.trial.cloud.taranawireless.com/v1/network/radios/upgrade"
+    
+    # Create request payload
+    data = {
+        "serialNumbers": [serial_number],
+        "packageId": package_id,
+        "activate": activate,
+        "factory": factory
+    }
+    
+    print("\nFirmware Upgrade Request payload:")
+    print(json.dumps(data, indent=2))
+    
+    try:
+        response = requests.post(
+            upgrade_endpoint,
+            headers=headers,
+            json=data,
+            verify=False
+        )
+        
+        print(f"\nUpgrade Request Status: {response.status_code}")
+        print(f"Upgrade Response Text: {response.text}")
+        
+        # Accept both 200 and 202 as success status codes
+        if response.status_code in [200, 202]:
+            print(f"Firmware upgrade initiated successfully")
+            return True
+            
+        return False
+        
+    except requests.exceptions.RequestException as e:
+        print(f"Upgrade request failed: {str(e)}")
+        if hasattr(e, 'response') and e.response is not None:
+            print(f"Error details: {e.response.text}")
+        return False

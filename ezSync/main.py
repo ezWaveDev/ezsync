@@ -38,6 +38,7 @@ def main():
     parser.add_argument('--max-workers', type=int, default=5, help='Maximum number of concurrent workers for parallel processing')
     parser.add_argument('--setup', action='store_true', help='Run the setup wizard to configure API keys and database connection')
     parser.add_argument('--skip-speedtest', action='store_true', help='Skip speed tests during refurbishment process')
+    parser.add_argument('--skip-firmware', action='store_true', help='Skip firmware upgrade during refurbishment process')
     parser.add_argument('serial_numbers', nargs='*', help='Serial number(s) of the radio(s)')
     args = parser.parse_args()
     
@@ -83,7 +84,11 @@ def main():
             print(f"Running refurbishment process in parallel with {args.max_workers} workers")
             if args.skip_speedtest:
                 print("Speed tests will be skipped during refurbishment")
-            results = refurbish_radios_parallel(args.serial_numbers, max_workers=args.max_workers, skip_speedtest=args.skip_speedtest)
+            if args.skip_firmware:
+                print("Firmware upgrade will be skipped during refurbishment")
+            results = refurbish_radios_parallel(args.serial_numbers, max_workers=args.max_workers, 
+                                               skip_speedtest=args.skip_speedtest, 
+                                               skip_firmware=args.skip_firmware)
             # The function handles its own output including the summary
         else:
             # Process radios sequentially (original behavior)
@@ -92,11 +97,13 @@ def main():
             
             if args.skip_speedtest:
                 print("Speed tests will be skipped during refurbishment")
+            if args.skip_firmware:
+                print("Firmware upgrade will be skipped during refurbishment")
                 
             for serial_number in args.serial_numbers:
                 print(f"\n{'='*20} REFURBISHING RADIO: {serial_number} {'='*20}")
                 
-                if refurbish_radio(serial_number, skip_speedtest=args.skip_speedtest):
+                if refurbish_radio(serial_number, skip_speedtest=args.skip_speedtest, skip_firmware=args.skip_firmware):
                     success_count += 1
                 else:
                     failure_count += 1

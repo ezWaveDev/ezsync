@@ -9,7 +9,8 @@ import random
 from ezSync.api import (
     get_radio_info, get_rn_info, reconnect_radio, reboot_radio,
     apply_default_config, apply_refurb_config,
-    initiate_speed_test, poll_speed_test_results, get_radio_status
+    initiate_speed_test, poll_speed_test_results, get_radio_status,
+    upgrade_radio_firmware
 )
 from ezSync.utils import format_value, calculate_average_speed_test_results, calculate_azimuth
 
@@ -328,13 +329,14 @@ def run_speed_tests(serial_number, num_tests=3, interval=60, max_attempts=10):
     
     return avg_results
 
-def refurbish_radio(serial_number, skip_speedtest=False):
+def refurbish_radio(serial_number, skip_speedtest=False, skip_firmware=False):
     """
     Perform the full refurbishment process on a radio.
     
     Args:
         serial_number (str): The serial number of the radio
         skip_speedtest (bool): Whether to skip the speed test step
+        skip_firmware (bool): Whether to skip the firmware upgrade step
         
     Returns:
         bool: True if all operations were successful, False otherwise
@@ -393,7 +395,34 @@ def refurbish_radio(serial_number, skip_speedtest=False):
     else:
         print("\nSkipping speed tests as requested.")
     
-    # Step 7: Apply final default configuration with REFURBISHED hostname
+    # Step 7: Firmware upgrade (if not skipped)
+    if not skip_firmware:
+        print(f"\nInitiating firmware upgrade for radio {serial_number}")
+        if not upgrade_radio_firmware(serial_number):
+            print(f"Failed to initiate firmware upgrade for radio {serial_number}")
+            return False
+        
+        # Wait for the radio to upgrade and reboot (this will take several minutes)
+        print(f"\nFirmware upgrade initiated. Waiting for radio to upgrade and reconnect...")
+        print(f"This process typically takes 10-15 minutes. Please be patient.")
+        
+        # Wait longer for upgrade to complete - upgrade can take 10+ minutes
+        upgrade_wait_time = 900  # 15 minutes in seconds
+        print(f"Waiting {upgrade_wait_time//60} minutes for the upgrade to complete...")
+        time.sleep(upgrade_wait_time)
+        
+        # Check if radio has reconnected after upgrade
+        print(f"Checking if radio {serial_number} has reconnected after upgrade...")
+        upgrade_reconnected = wait_for_connection(serial_number, check_interval=60, max_attempts=5)
+        if not upgrade_reconnected:
+            print(f"Warning: Radio {serial_number} did not reconnect after upgrade within the expected time")
+            print(f"The upgrade may still be in progress. Continuing with the next steps...")
+        else:
+            print(f"Radio {serial_number} successfully reconnected after firmware upgrade")
+    else:
+        print("\nSkipping firmware upgrade as requested.")
+    
+    # Step 8: Apply final default configuration with REFURBISHED hostname
     print(f"Applying final configuration with REFURBISHED hostname")
     if not apply_default_config(serial_number, custom_hostname="REFURBISHED"):
         print(f"Failed to apply final configuration to radio {serial_number}")
@@ -409,29 +438,38 @@ def mp_refurbish_radio(args):
     This needs to be at the module level to be picklable.
     
     Args:
-        args (tuple): (serial_number, skip_speedtest)
+        args (tuple): (serial_number, skip_speedtest, skip_firmware)
         
     Returns:
         tuple: (serial_number, success)
     """
     # Unpack arguments
-    if isinstance(args, tuple) and len(args) > 1:
-        serial_number, skip_speedtest = args
+    if isinstance(args, tuple):
+        if len(args) > 2:
+            serial_number, skip_speedtest, skip_firmware = args
+        elif len(args) > 1:
+            serial_number, skip_speedtest = args
+            skip_firmware = False
+        else:
+            serial_number = args[0]
+            skip_speedtest = False
+            skip_firmware = False
     else:
         serial_number = args
         skip_speedtest = False
+        skip_firmware = False
     
     # Print process info
     import os
     print(f"[Process {os.getpid()}] Refurbishing {serial_number}")
     
     # Call the actual refurbishment function
-    success = refurbish_radio(serial_number, skip_speedtest=skip_speedtest)
+    success = refurbish_radio(serial_number, skip_speedtest=skip_speedtest, skip_firmware=skip_firmware)
     
     # Return both the serial number and success status
     return (serial_number, success)
 
-def refurbish_radios_parallel(serial_numbers, max_workers=5, skip_speedtest=False):
+def refurbish_radios_parallel(serial_numbers, max_workers=5, skip_speedtest=False, skip_firmware=False):
     """
     Perform parallel refurbishment on multiple radios simultaneously
     using multiprocessing for reliable process management and clean exit.
@@ -440,6 +478,7 @@ def refurbish_radios_parallel(serial_numbers, max_workers=5, skip_speedtest=Fals
         serial_numbers (list): List of serial numbers to process
         max_workers (int): Maximum number of concurrent refurbishment operations
         skip_speedtest (bool): Whether to skip the speed test step
+        skip_firmware (bool): Whether to skip the firmware upgrade step
         
     Returns:
         dict: Summary of results with successful and failed operations
@@ -458,8 +497,8 @@ def refurbish_radios_parallel(serial_numbers, max_workers=5, skip_speedtest=Fals
             # Map all serial numbers to the module-level worker function
             print(f"Processing {len(serial_numbers)} radios, this may take some time...")
             
-            # Create a list of tuples (serial_number, skip_speedtest) for each radio
-            radio_args = [(sn, skip_speedtest) for sn in serial_numbers]
+            # Create a list of tuples (serial_number, skip_speedtest, skip_firmware) for each radio
+            radio_args = [(sn, skip_speedtest, skip_firmware) for sn in serial_numbers]
             
             # Process all radios using the module-level worker function
             results_list = pool.map(mp_refurbish_radio, radio_args)

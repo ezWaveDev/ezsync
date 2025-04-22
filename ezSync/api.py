@@ -678,6 +678,30 @@ def get_latest_stable_firmware():
     print(f"Found latest stable firmware: {latest_stable.get('id')}")
     return latest_stable
 
+def get_radio_firmware_version(serial_number):
+    """
+    Get the current firmware version of a radio.
+    
+    Args:
+        serial_number (str): The serial number of the radio
+        
+    Returns:
+        str: The current firmware version or None if error
+    """
+    radio_info = get_radio_info(serial_number)
+    if not radio_info:
+        print(f"Failed to get radio information for {serial_number}")
+        return None
+    
+    # Extract firmware version from radio info
+    firmware_version = radio_info.get('softwareVersion')
+    if firmware_version:
+        print(f"Radio {serial_number} is running firmware version: {firmware_version}")
+        return firmware_version
+    
+    print(f"Could not determine firmware version for radio {serial_number}")
+    return None
+
 def upgrade_radio_firmware(serial_number, package_id=None, activate=True, factory=True):
     """
     Upgrade a radio's firmware.
@@ -703,6 +727,18 @@ def upgrade_radio_firmware(serial_number, package_id=None, activate=True, factor
             return False
         package_id = latest_firmware.get('id')
         print(f"Using latest stable firmware: {package_id}")
+    
+    # Check current firmware version
+    current_firmware = get_radio_firmware_version(serial_number)
+    
+    # Parse the firmware version from package_id (assuming format SYS.A3.R10.XXX.3.xxx.xxx.xx)
+    # This is a simplification - we're checking if the package_id contains the current version
+    if current_firmware and package_id:
+        # If current firmware version is found in the package_id, it's likely the same firmware
+        if current_firmware in package_id:
+            print(f"Radio {serial_number} is already running firmware {current_firmware}")
+            print(f"Skipping firmware upgrade as the target version appears to be already installed")
+            return True
     
     headers = get_api_headers()
     
@@ -731,8 +767,32 @@ def upgrade_radio_firmware(serial_number, package_id=None, activate=True, factor
         print(f"\nUpgrade Request Status: {response.status_code}")
         print(f"Upgrade Response Text: {response.text}")
         
-        # Accept both 200 and 202 as success status codes
+        # Check if we got a 200/202 response code but error in the response
         if response.status_code in [200, 202]:
+            # Try to parse the JSON response
+            try:
+                response_data = response.json()
+                
+                # Check if there's an error in the items array
+                if ('data' in response_data and 
+                    'items' in response_data['data'] and 
+                    len(response_data['data']['items']) > 0):
+                    
+                    item = response_data['data']['items'][0]
+                    if 'error' in item and item['error']:
+                        error_message = item['error'].get('message', 'Unknown error')
+                        
+                        # Check for specific error conditions
+                        if "Software could not be installed" in error_message and "it is currently active" in error_message:
+                            print(f"Radio is already running the target firmware version")
+                            return True
+                        
+                        print(f"Error in firmware upgrade response: {error_message}")
+                        return False
+            except json.JSONDecodeError:
+                # If we can't parse the JSON, just continue as if it was successful
+                pass
+                
             print(f"Firmware upgrade initiated successfully")
             return True
             

@@ -360,33 +360,78 @@ def refurbish_radio(serial_number, skip_speedtest=False, skip_firmware=False):
         print(f"Failed to apply refurbishment configuration to radio {serial_number}")
         return False
     
-    # Add a 30-second wait after config and before reboot
+    # Add a short wait after config before proceeding
     print("Waiting 30 seconds after applying refurbishment configuration...")
     time.sleep(30)
-    print("Wait complete. Proceeding with reboot.")
     
-    # Step 4: Reboot the radio (replacing force reconnection)
-    print(f"Rebooting radio: {serial_number}")
-    if not reboot_radio(serial_number):
-        print(f"Failed to reboot radio {serial_number}")
-        return False
-    
-    # Step 5: Wait for reconnection
-    print(f"Waiting for radio {serial_number} to reconnect after reboot...")
-    reconnected, _ = wait_for_reconnection(serial_number)
-    if not reconnected:
-        print(f"Radio {serial_number} did not reconnect after reboot")
-        return False
+    # Step 4: Handle firmware upgrade or reboot based on skip_firmware flag
+    if not skip_firmware:
+        # If we're doing firmware upgrade, we don't need a separate reboot
+        # as the firmware upgrade process will reboot the radio
+        print(f"\nInitiating firmware upgrade for radio {serial_number}")
+        print(f"The firmware upgrade will reboot the radio automatically")
+        
+        from ezSync.api import upgrade_radio_firmware
+        if not upgrade_radio_firmware(serial_number):
+            print(f"Failed to initiate firmware upgrade for radio {serial_number}")
+            return False
+        
+        # Wait for the radio to upgrade and reboot
+        print(f"\nFirmware upgrade initiated. Waiting for radio to upgrade and reconnect...")
+        print(f"This process typically takes 5-15 minutes. Will start checking for reconnection after 5 minutes.")
+        
+        # Initial wait before starting to check for reconnection
+        initial_wait = 300  # 5 minutes in seconds
+        print(f"Waiting {initial_wait//60} minutes before first reconnection check...")
+        time.sleep(initial_wait)
+        
+        # Now check periodically if the radio has reconnected
+        upgrade_check_interval = 60  # Check every minute
+        max_upgrade_checks = 10  # Maximum 10 checks (10 additional minutes)
+        
+        print(f"Beginning periodic checks for radio reconnection (every {upgrade_check_interval} seconds)...")
+        upgrade_reconnected = False
+        
+        for check in range(1, max_upgrade_checks + 1):
+            print(f"Reconnection check {check}/{max_upgrade_checks}...")
+            
+            # Check if radio has reconnected
+            if wait_for_connection(serial_number, check_interval=5, max_attempts=2):
+                print(f"Radio {serial_number} successfully reconnected after firmware upgrade")
+                upgrade_reconnected = True
+                break
+            
+            # Wait before next check if we haven't reached the maximum
+            if check < max_upgrade_checks:
+                print(f"Radio not reconnected yet. Waiting {upgrade_check_interval} seconds before next check...")
+                time.sleep(upgrade_check_interval)
+        
+        if not upgrade_reconnected:
+            print(f"Warning: Radio {serial_number} did not reconnect after firmware upgrade within the expected time")
+            print(f"Attempting to proceed with the remaining steps anyway...")
+    else:
+        # If we're skipping firmware, we need to explicitly reboot the radio
+        print(f"Rebooting radio: {serial_number}")
+        if not reboot_radio(serial_number):
+            print(f"Failed to reboot radio {serial_number}")
+            return False
+        
+        # Wait for reconnection after reboot
+        print(f"Waiting for radio {serial_number} to reconnect after reboot...")
+        reconnected, _ = wait_for_reconnection(serial_number)
+        if not reconnected:
+            print(f"Radio {serial_number} did not reconnect after reboot")
+            return False
     
     # Only run speed tests if not skipped
     if not skip_speedtest:
-        # Add a 1-minute settling period before starting speed tests
+        # Add a settling period before starting speed tests
         settling_time = 60  # 1 minute in seconds
-        print(f"\nRadio reconnected successfully. Allowing {settling_time} seconds for connection to stabilize before running speed tests...")
+        print(f"\nAllowing {settling_time} seconds for connection to stabilize before running speed tests...")
         time.sleep(settling_time)
         print("Settling period complete. Proceeding with speed tests.")
         
-        # Step 6: Run speed tests
+        # Run speed tests
         print(f"Running speed tests for radio {serial_number}")
         speed_test_results = run_speed_tests(serial_number, num_tests=3, interval=60, max_attempts=10)
         if not speed_test_results:
@@ -395,34 +440,7 @@ def refurbish_radio(serial_number, skip_speedtest=False, skip_firmware=False):
     else:
         print("\nSkipping speed tests as requested.")
     
-    # Step 7: Firmware upgrade (if not skipped)
-    if not skip_firmware:
-        print(f"\nInitiating firmware upgrade for radio {serial_number}")
-        if not upgrade_radio_firmware(serial_number):
-            print(f"Failed to initiate firmware upgrade for radio {serial_number}")
-            return False
-        
-        # Wait for the radio to upgrade and reboot (this will take several minutes)
-        print(f"\nFirmware upgrade initiated. Waiting for radio to upgrade and reconnect...")
-        print(f"This process typically takes 10-15 minutes. Please be patient.")
-        
-        # Wait longer for upgrade to complete - upgrade can take 10+ minutes
-        upgrade_wait_time = 900  # 15 minutes in seconds
-        print(f"Waiting {upgrade_wait_time//60} minutes for the upgrade to complete...")
-        time.sleep(upgrade_wait_time)
-        
-        # Check if radio has reconnected after upgrade
-        print(f"Checking if radio {serial_number} has reconnected after upgrade...")
-        upgrade_reconnected = wait_for_connection(serial_number, check_interval=60, max_attempts=5)
-        if not upgrade_reconnected:
-            print(f"Warning: Radio {serial_number} did not reconnect after upgrade within the expected time")
-            print(f"The upgrade may still be in progress. Continuing with the next steps...")
-        else:
-            print(f"Radio {serial_number} successfully reconnected after firmware upgrade")
-    else:
-        print("\nSkipping firmware upgrade as requested.")
-    
-    # Step 8: Apply final default configuration with REFURBISHED hostname
+    # Apply final default configuration with REFURBISHED hostname
     print(f"Applying final configuration with REFURBISHED hostname")
     if not apply_default_config(serial_number, custom_hostname="REFURBISHED"):
         print(f"Failed to apply final configuration to radio {serial_number}")

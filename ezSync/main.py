@@ -90,8 +90,6 @@ def main():
                                                skip_speedtest=args.skip_speedtest, 
                                                skip_firmware=args.skip_firmware,
                                                verbose=args.verbose)
-            # Set failure_count based on the results
-            failure_count = len(results['failure'])
             # The function handles its own output including the summary
         else:
             # Process radios sequentially (original behavior)

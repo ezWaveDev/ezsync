@@ -90,7 +90,8 @@ def main():
                                                skip_speedtest=args.skip_speedtest, 
                                                skip_firmware=args.skip_firmware,
                                                verbose=args.verbose)
-            # The function handles its own output including the summary
+            # Set failure_count for consistent return code
+            failure_count = len(results.get('failure', []))
         else:
             # Process radios sequentially (original behavior)
             success_count = 0

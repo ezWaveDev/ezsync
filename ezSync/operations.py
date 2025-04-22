@@ -493,6 +493,248 @@ def mp_refurbish_radio(args):
     # Return both the serial number and success status
     return (serial_number, success)
 
+# Define step indicators and their meanings
+STEPS = {
+    'init': 0,       # Initialization
+    'connect': 1,    # Connecting to radio
+    'config': 2,     # Applying configuration
+    'firmware': 3,   # Firmware upgrade
+    'reboot': 4,     # Rebooting
+    'speedtest': 5,  # Running speed tests
+    'complete': 6    # Completed
+}
+
+STEP_SYMBOLS = [
+    "[1]",  # Connect
+    "[2]",  # Configure
+    "[3]",  # Reboot/Firmware
+    "[4]",  # Speed Test
+    "[5]"   # Final Config
+]
+
+# Global variables for status tracking
+status_lock = None
+status_board = {}
+verbose_mode = False
+capture_output = False
+status_stop_timer = False
+
+def track_progress(sn, captured_output):
+    """Track progress of a radio refurbishment based on output"""
+    global status_board, status_lock
+    
+    lines = captured_output.splitlines()
+    for line in lines[-10:]:  # Look at recent lines
+        if "Waiting for radio" in line and "to connect" in line:
+            update_status(sn, step='connect', message="Waiting for connection")
+        elif "Applying refurbishment configuration" in line:
+            update_status(sn, step='config', message="Applying configuration")
+        elif "Firmware upgrade initiated" in line:
+            update_status(sn, step='firmware', message="Upgrading firmware")
+        elif "Rebooting radio" in line:
+            update_status(sn, step='reboot', message="Rebooting")
+        elif "Running speed tests" in line:
+            update_status(sn, step='speedtest', message="Running speed tests")
+        elif "Applying final configuration" in line:
+            update_status(sn, step='complete', message="Applying final config")
+        elif "Successfully refurbished radio" in line:
+            update_status(sn, step='complete', status='SUCCESS')
+        elif "Failed to " in line:
+            # Extract error message
+            error_msg = line.split("Failed to ", 1)[1]
+            if len(error_msg) > 30:
+                error_msg = error_msg[:27] + "..."
+            update_status(sn, status='FAILED', error=error_msg)
+
+def update_status(serial_number, step=None, status=None, message=None, error=None):
+    """Update the status of a radio and refresh the display"""
+    global status_board, status_lock, verbose_mode
+    
+    if status_lock is None:
+        return
+        
+    with status_lock:
+        # Update the status board
+        if serial_number in status_board:
+            if step is not None:
+                status_board[serial_number]['step'] = step
+            if status is not None:
+                status_board[serial_number]['status'] = status
+            if message is not None:
+                status_board[serial_number]['message'] = message
+            if error is not None:
+                status_board[serial_number]['error'] = error
+                
+            # Only refresh display in non-verbose mode
+            if not verbose_mode:
+                # Clear screen and redraw status board
+                print_status_board()
+
+def print_status_board():
+    """Print a status board showing progress of all radios"""
+    global status_board, verbose_mode
+    
+    import sys
+    
+    # Move cursor to beginning and clear screen
+    sys.stdout.write("\033[H\033[J")
+    
+    # Print header
+    sys.stdout.write(f"=== Refurbishing {len(status_board)} radios in parallel ===\n")
+    sys.stdout.write("\n")
+    
+    # Function to get progress indicators for a radio
+    def get_progress_indicators(radio_status):
+        step = radio_status['step']
+        status = radio_status['status']
+        error = radio_status['error']
+        
+        step_value = STEPS.get(step, 0)
+        
+        # Generate progress string
+        progress = []
+        
+        # Add step indicators
+        for i in range(len(STEP_SYMBOLS)):
+            if status == 'FAILED' and i == step_value - 1:
+                progress.append("[✗]")  # Failed at this step
+            elif i < step_value:
+                progress.append(STEP_SYMBOLS[i])  # Completed step
+            elif i == step_value and status in ['RUNNING', 'PENDING']:
+                # Current step (in progress)
+                progress.append(f"[{i+1}]")
+            else:
+                # Future step
+                progress.append(f"[ ]")
+        
+        # Add completion marker if successful
+        if status == 'SUCCESS':
+            progress.append("[✓]")
+        
+        # Join with arrows
+        progress_str = "→".join(progress)
+        
+        # Add status and message
+        if status == 'SUCCESS':
+            result = f"{progress_str}  \033[92mSUCCESS\033[0m"
+        elif status == 'FAILED':
+            result = f"{progress_str}  \033[91mFAILED\033[0m"
+            if error:
+                result += f" ({error})"
+        else:  # RUNNING or PENDING
+            result = f"{progress_str}  \033[93m{status}\033[0m"
+            message = radio_status['message']
+            if message:
+                result += f" - {message}"
+        
+        return result
+    
+    # Print status for each radio
+    for sn in status_board.keys():
+        progress_str = get_progress_indicators(status_board[sn])
+        sys.stdout.write(f"{sn}:  {progress_str}\n")
+    
+    # Print legend
+    sys.stdout.write("\nSteps: [1]=Connect [2]=Configure [3]=Reboot/Firmware [4]=Speed Test [5]=Final Config [✓]=Complete [✗]=Failed\n\n")
+    sys.stdout.flush()
+
+# Module-level function for status wrapper
+def status_wrapper(args):
+    """Module-level wrapper for refurbishment process with status tracking"""
+    global status_board, verbose_mode, status_stop_timer
+    
+    import sys
+    import time
+    import threading
+    from io import StringIO
+    
+    # Extract serial number
+    sn = args[0] if isinstance(args, tuple) else args
+    
+    # Update status to running
+    update_status(sn, step='init', status='RUNNING', message="Starting refurbishment")
+    
+    # Store the original stdout if verbose mode is off
+    original_stdout = None
+    captured_output = None
+    
+    if not verbose_mode:
+        original_stdout = sys.stdout
+        
+        # Create a string buffer to capture output
+        captured_output = StringIO()
+        sys.stdout = captured_output
+    
+    try:
+        # Set up a timer to periodically update progress if not verbose
+        timer = None
+        
+        if not verbose_mode:
+            stop_timer = False
+            
+            def update_timer():
+                while not stop_timer and not status_stop_timer:
+                    track_progress(sn, captured_output.getvalue())
+                    time.sleep(1)
+            
+            timer = threading.Thread(target=update_timer)
+            timer.daemon = True
+            timer.start()
+        
+        # Call the original function
+        result = mp_refurbish_radio(args)
+        
+        # Update status based on result
+        success = result[1] if isinstance(result, tuple) and len(result) > 1 else False
+        status = "SUCCESS" if success else "FAILED"
+        
+        if not verbose_mode:
+            # Stop the timer
+            stop_timer = True
+            
+            # Restore stdout
+            sys.stdout = original_stdout
+            
+            # Final tracking update
+            if captured_output:
+                track_progress(sn, captured_output.getvalue())
+            
+            # Extract error message if failed
+            if not success and captured_output:
+                output_lines = captured_output.getvalue().splitlines()
+                for line in reversed(output_lines):
+                    if "Failed to " in line:
+                        error_msg = line.split("Failed to ", 1)[1]
+                        if len(error_msg) > 30:
+                            error_msg = error_msg[:27] + "..."
+                        update_status(sn, status='FAILED', error=error_msg)
+                        break
+            else:
+                update_status(sn, step='complete', status='SUCCESS')
+        else:
+            # In verbose mode, just update the status
+            update_status(sn, step='complete', status=status)
+        
+        return result
+        
+    except Exception as e:
+        # Handle exceptions
+        if not verbose_mode and original_stdout:
+            # Restore stdout
+            sys.stdout = original_stdout
+            
+            # Update status with error
+            error_msg = str(e)
+            if len(error_msg) > 30:
+                error_msg = error_msg[:27] + "..."
+            update_status(sn, status='FAILED', error=error_msg)
+        else:
+            print(f"Error in {sn}: {str(e)}")
+            update_status(sn, status='FAILED')
+        
+        # Return failure
+        return (sn, False)
+
 def refurbish_radios_parallel(serial_numbers, max_workers=5, skip_speedtest=False, skip_firmware=False, verbose=False):
     """
     Perform parallel refurbishment on multiple radios simultaneously
@@ -514,225 +756,20 @@ def refurbish_radios_parallel(serial_numbers, max_workers=5, skip_speedtest=Fals
     import time
     import threading
     
-    # Define step indicators and their meanings
-    STEPS = {
-        'init': 0,       # Initialization
-        'connect': 1,    # Connecting to radio
-        'config': 2,     # Applying configuration
-        'firmware': 3,   # Firmware upgrade
-        'reboot': 4,     # Rebooting
-        'speedtest': 5,  # Running speed tests
-        'complete': 6    # Completed
-    }
+    # Set global variables
+    global status_lock, status_board, verbose_mode, status_stop_timer
     
-    STEP_SYMBOLS = [
-        "[1]",  # Connect
-        "[2]",  # Configure
-        "[3]",  # Reboot/Firmware
-        "[4]",  # Speed Test
-        "[5]"   # Final Config
-    ]
+    # Reset the stop timer flag
+    status_stop_timer = False
+    
+    # Set the verbose mode
+    verbose_mode = verbose
     
     # Create a lock for synchronizing status updates
     status_lock = threading.Lock()
     
-    # Status tracking dictionary: each radio has a current step and status message
+    # Initialize status tracking dictionary
     status_board = {sn: {'step': 'init', 'status': 'PENDING', 'message': None, 'error': None} for sn in serial_numbers}
-    
-    def update_status(serial_number, step=None, status=None, message=None, error=None):
-        """Update the status of a radio and refresh the display"""
-        with status_lock:
-            # Update the status board
-            if step is not None:
-                status_board[serial_number]['step'] = step
-            if status is not None:
-                status_board[serial_number]['status'] = status
-            if message is not None:
-                status_board[serial_number]['message'] = message
-            if error is not None:
-                status_board[serial_number]['error'] = error
-                
-            # Only refresh display in non-verbose mode
-            if not verbose:
-                # Clear screen and redraw status board
-                print_status_board()
-    
-    def print_status_board():
-        """Print a status board showing progress of all radios"""
-        # Move cursor to beginning and clear screen
-        sys.stdout.write("\033[H\033[J")
-        
-        # Print header
-        sys.stdout.write(f"=== Refurbishing {len(serial_numbers)} radios in parallel (max {max_workers} workers) ===\n")
-        if skip_speedtest:
-            sys.stdout.write("Speed tests will be skipped\n")
-        if skip_firmware:
-            sys.stdout.write("Firmware upgrades will be skipped\n")
-        sys.stdout.write("\n")
-        
-        # Function to get progress indicators for a radio
-        def get_progress_indicators(radio_status):
-            step = radio_status['step']
-            status = radio_status['status']
-            error = radio_status['error']
-            
-            step_value = STEPS.get(step, 0)
-            
-            # Generate progress string
-            progress = []
-            
-            # Add step indicators
-            for i in range(len(STEP_SYMBOLS)):
-                if status == 'FAILED' and i == step_value - 1:
-                    progress.append("[✗]")  # Failed at this step
-                elif i < step_value:
-                    progress.append(STEP_SYMBOLS[i])  # Completed step
-                elif i == step_value and status in ['RUNNING', 'PENDING']:
-                    # Current step (in progress)
-                    progress.append(f"[{i+1}]")
-                else:
-                    # Future step
-                    progress.append(f"[ ]")
-            
-            # Add completion marker if successful
-            if status == 'SUCCESS':
-                progress.append("[✓]")
-            
-            # Join with arrows
-            progress_str = "→".join(progress)
-            
-            # Add status and message
-            if status == 'SUCCESS':
-                result = f"{progress_str}  \033[92mSUCCESS\033[0m"
-            elif status == 'FAILED':
-                result = f"{progress_str}  \033[91mFAILED\033[0m"
-                if error:
-                    result += f" ({error})"
-            else:  # RUNNING or PENDING
-                result = f"{progress_str}  \033[93m{status}\033[0m"
-                message = radio_status['message']
-                if message:
-                    result += f" - {message}"
-            
-            return result
-        
-        # Print status for each radio
-        for sn in serial_numbers:
-            progress_str = get_progress_indicators(status_board[sn])
-            sys.stdout.write(f"{sn}:  {progress_str}\n")
-        
-        # Print legend
-        sys.stdout.write("\nSteps: [1]=Connect [2]=Configure [3]=Reboot/Firmware [4]=Speed Test [5]=Final Config [✓]=Complete [✗]=Failed\n\n")
-        sys.stdout.flush()
-    
-    # Create a wrapper for mp_refurbish_radio that updates status
-    def status_wrapper(args):
-        sn = args[0] if isinstance(args, tuple) else args
-        
-        # Update status to running
-        update_status(sn, step='init', status='RUNNING', message="Starting refurbishment")
-        
-        # Store the original stdout if verbose mode is off
-        if not verbose:
-            original_stdout = sys.stdout
-            
-            # Create a string buffer to capture output
-            from io import StringIO
-            captured_output = StringIO()
-            sys.stdout = captured_output
-            
-            # Create a hook to track progress based on output
-            def track_progress():
-                lines = captured_output.getvalue().splitlines()
-                for line in lines[-10:]:  # Look at recent lines
-                    if "Waiting for radio" in line and "to connect" in line:
-                        update_status(sn, step='connect', message="Waiting for connection")
-                    elif "Applying refurbishment configuration" in line:
-                        update_status(sn, step='config', message="Applying configuration")
-                    elif "Firmware upgrade initiated" in line:
-                        update_status(sn, step='firmware', message="Upgrading firmware")
-                    elif "Rebooting radio" in line:
-                        update_status(sn, step='reboot', message="Rebooting")
-                    elif "Running speed tests" in line:
-                        update_status(sn, step='speedtest', message="Running speed tests")
-                    elif "Applying final configuration" in line:
-                        update_status(sn, step='complete', message="Applying final config")
-                    elif "Successfully refurbished radio" in line:
-                        update_status(sn, step='complete', status='SUCCESS')
-                    elif "Failed to " in line:
-                        # Extract error message
-                        error_msg = line.split("Failed to ", 1)[1]
-                        if len(error_msg) > 30:
-                            error_msg = error_msg[:27] + "..."
-                        update_status(sn, status='FAILED', error=error_msg)
-        
-        try:
-            # Set up a timer to periodically update progress if not verbose
-            if not verbose:
-                import threading
-                stop_timer = False
-                
-                def update_timer():
-                    while not stop_timer:
-                        track_progress()
-                        time.sleep(1)
-                
-                timer = threading.Thread(target=update_timer)
-                timer.daemon = True
-                timer.start()
-            
-            # Call the original function
-            result = mp_refurbish_radio(args)
-            
-            # Update status based on result
-            success = result[1] if isinstance(result, tuple) and len(result) > 1 else False
-            status = "SUCCESS" if success else "FAILED"
-            
-            if not verbose:
-                # Stop the timer
-                stop_timer = True
-                
-                # Restore stdout
-                sys.stdout = original_stdout
-                
-                # Final tracking update
-                track_progress()
-                
-                # Extract error message if failed
-                if not success:
-                    output_lines = captured_output.getvalue().splitlines()
-                    for line in reversed(output_lines):
-                        if "Failed to " in line:
-                            error_msg = line.split("Failed to ", 1)[1]
-                            if len(error_msg) > 30:
-                                error_msg = error_msg[:27] + "..."
-                            update_status(sn, status='FAILED', error=error_msg)
-                            break
-                else:
-                    update_status(sn, step='complete', status='SUCCESS')
-            else:
-                # In verbose mode, just update the status
-                update_status(sn, step='complete', status=status)
-            
-            return result
-            
-        except Exception as e:
-            # Handle exceptions
-            if not verbose:
-                # Restore stdout
-                sys.stdout = original_stdout
-                
-                # Update status with error
-                error_msg = str(e)
-                if len(error_msg) > 30:
-                    error_msg = error_msg[:27] + "..."
-                update_status(sn, status='FAILED', error=error_msg)
-            else:
-                print(f"Error in {sn}: {str(e)}")
-                update_status(sn, status='FAILED')
-            
-            # Return failure
-            return (sn, False)
     
     # Print initial header
     if verbose:
@@ -761,6 +798,9 @@ def refurbish_radios_parallel(serial_numbers, max_workers=5, skip_speedtest=Fals
                 else:
                     failure_list.append(sn)
                     update_status(sn, status='FAILED')
+            
+            # Signal to stop all timers
+            status_stop_timer = True
             
             # Final refresh of status board
             if not verbose:

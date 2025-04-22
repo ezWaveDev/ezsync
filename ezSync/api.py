@@ -746,7 +746,8 @@ def upgrade_radio_firmware(serial_number, package_id=None, activate=True, factor
         # If current firmware version is found in the package_id, it's likely the same firmware
         if current_firmware in package_id:
             print(f"Radio {serial_number} is already running firmware {current_firmware}")
-            print(f"Skipping firmware upgrade as the target version appears to be already installed")
+            print(f"Skipping firmware upgrade as the target version is already installed")
+            print(f"No reboot required for this step")
             return UpgradeResult(success=True, skipped=True)
     
     headers = get_api_headers()
@@ -794,6 +795,7 @@ def upgrade_radio_firmware(serial_number, package_id=None, activate=True, factor
                         # Check for specific error conditions
                         if "Software could not be installed" in error_message and "it is currently active" in error_message:
                             print(f"Radio is already running the target firmware version")
+                            print(f"No reboot required for this step")
                             return UpgradeResult(success=True, skipped=True)
                         
                         print(f"Error in firmware upgrade response: {error_message}")

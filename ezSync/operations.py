@@ -366,11 +366,7 @@ def refurbish_radio(serial_number, skip_speedtest=False, skip_firmware=False):
     
     # Step 4: Handle firmware upgrade or reboot based on skip_firmware flag
     if not skip_firmware:
-        # If we're doing firmware upgrade, we don't need a separate reboot
-        # as the firmware upgrade process will reboot the radio
-        print(f"\nInitiating firmware upgrade for radio {serial_number}")
-        print(f"The firmware upgrade will reboot the radio automatically")
-        
+        # Check if firmware upgrade is needed
         from ezSync.api import upgrade_radio_firmware
         upgrade_result = upgrade_radio_firmware(serial_number)
         
@@ -379,23 +375,11 @@ def refurbish_radio(serial_number, skip_speedtest=False, skip_firmware=False):
             return False
         
         # Check if the radio was already running the target firmware
-        # In that case, we need to perform an explicit reboot instead
         if hasattr(upgrade_result, 'skipped') and upgrade_result.skipped:
             print(f"Firmware upgrade was skipped as the radio already has the target version")
-            print(f"Proceeding with explicit reboot instead")
+            print(f"No reboot needed - continuing with next steps")
             
-            # Perform an explicit reboot since firmware upgrade was skipped
-            print(f"Rebooting radio: {serial_number}")
-            if not reboot_radio(serial_number):
-                print(f"Failed to reboot radio {serial_number}")
-                return False
-            
-            # Wait for reconnection after reboot
-            print(f"Waiting for radio {serial_number} to reconnect after reboot...")
-            reconnected, _ = wait_for_reconnection(serial_number)
-            if not reconnected:
-                print(f"Radio {serial_number} did not reconnect after reboot")
-                return False
+            # No reboot needed, continue with the process
         else:
             # An actual firmware upgrade was initiated
             # Wait for the radio to upgrade and reboot

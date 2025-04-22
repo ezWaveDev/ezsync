@@ -417,32 +417,32 @@ def refurbish_radio(serial_number, skip_speedtest=False, skip_firmware=False):
                 print(f"Attempting to proceed with the remaining steps anyway...")
     else:
         # If we're skipping firmware, we need to explicitly reboot the radio
-    print(f"Rebooting radio: {serial_number}")
-    if not reboot_radio(serial_number):
-        print(f"Failed to reboot radio {serial_number}")
-        return False
-    
+        print(f"Rebooting radio: {serial_number}")
+        if not reboot_radio(serial_number):
+            print(f"Failed to reboot radio {serial_number}")
+            return False
+        
         # Wait for reconnection after reboot
-    print(f"Waiting for radio {serial_number} to reconnect after reboot...")
-    reconnected, _ = wait_for_reconnection(serial_number)
-    if not reconnected:
-        print(f"Radio {serial_number} did not reconnect after reboot")
-        return False
+        print(f"Waiting for radio {serial_number} to reconnect after reboot...")
+        reconnected, _ = wait_for_reconnection(serial_number)
+        if not reconnected:
+            print(f"Radio {serial_number} did not reconnect after reboot")
+            return False
     
     # Only run speed tests if not skipped
     if not skip_speedtest:
         # Add a settling period before starting speed tests
         settling_time = 60  # 1 minute in seconds
         print(f"\nAllowing {settling_time} seconds for connection to stabilize before running speed tests...")
-    time.sleep(settling_time)
-    print("Settling period complete. Proceeding with speed tests.")
-    
+        time.sleep(settling_time)
+        print("Settling period complete. Proceeding with speed tests.")
+        
         # Run speed tests
-    print(f"Running speed tests for radio {serial_number}")
-    speed_test_results = run_speed_tests(serial_number, num_tests=3, interval=60, max_attempts=10)
-    if not speed_test_results:
-        print(f"Failed to complete speed tests for radio {serial_number}")
-        return False
+        print(f"Running speed tests for radio {serial_number}")
+        speed_test_results = run_speed_tests(serial_number, num_tests=3, interval=60, max_attempts=10)
+        if not speed_test_results:
+            print(f"Failed to complete speed tests for radio {serial_number}")
+            return False
     else:
         print("\nSkipping speed tests as requested.")
     
@@ -537,17 +537,9 @@ def refurbish_radios_parallel(serial_numbers, max_workers=5, skip_speedtest=Fals
     status_lock = threading.Lock()
     
     # Status tracking dictionary: each radio has a current step and status message
-    status_board = {
-        sn: {
-            'step': 'init', 
-            'status': 'PENDING', 
-            'message': None, 
-            'error': None,
-            'speed_results': None  # Will store speed test results
-        } for sn in serial_numbers
-    }
+    status_board = {sn: {'step': 'init', 'status': 'PENDING', 'message': None, 'error': None} for sn in serial_numbers}
     
-    def update_status(serial_number, step=None, status=None, message=None, error=None, speed_results=None):
+    def update_status(serial_number, step=None, status=None, message=None, error=None):
         """Update the status of a radio and refresh the display"""
         with status_lock:
             # Update the status board
@@ -559,8 +551,6 @@ def refurbish_radios_parallel(serial_numbers, max_workers=5, skip_speedtest=Fals
                 status_board[serial_number]['message'] = message
             if error is not None:
                 status_board[serial_number]['error'] = error
-            if speed_results is not None:
-                status_board[serial_number]['speed_results'] = speed_results
                 
             # Only refresh display in non-verbose mode
             if not verbose:
@@ -574,8 +564,11 @@ def refurbish_radios_parallel(serial_numbers, max_workers=5, skip_speedtest=Fals
         
         # Print header
         sys.stdout.write(f"=== Refurbishing {len(serial_numbers)} radios in parallel (max {max_workers} workers) ===\n")
-        sys.stdout.write(f"Speed tests will be skipped: {'Yes' if skip_speedtest else 'No'}\n")
-        sys.stdout.write(f"Firmware upgrades will be skipped: {'Yes' if skip_firmware else 'No'}\n\n")
+        if skip_speedtest:
+            sys.stdout.write("Speed tests will be skipped\n")
+        if skip_firmware:
+            sys.stdout.write("Firmware upgrades will be skipped\n")
+        sys.stdout.write("\n")
         
         # Function to get progress indicators for a radio
         def get_progress_indicators(radio_status):
@@ -623,58 +616,10 @@ def refurbish_radios_parallel(serial_numbers, max_workers=5, skip_speedtest=Fals
             
             return result
         
-        # Format speed test results table for a radio
-        def format_speed_test_results(speed_results):
-            if not speed_results or not isinstance(speed_results, list) or len(speed_results) == 0:
-                return ""
-                
-            # Header
-            result = "  Speed Test Results:\n"
-            result += "  | Test | DL (Mbps) | UL (Mbps) | Latency (ms) | DL SNR | UL SNR | Path Loss | RF Dist\n"
-            result += "  " + "-" * 81 + "\n"
-            
-            # Individual tests
-            from ezSync.utils import format_value
-            
-            for i, test in enumerate(speed_results):
-                dl = test.get('downlinkThroughput', 0) / 1000 if test.get('downlinkThroughput') is not None else 0
-                ul = test.get('uplinkThroughput', 0) / 1000 if test.get('uplinkThroughput') is not None else 0
-                latency = test.get('latencyMillis', 0)
-                dl_snr = test.get('downlinkSnr', 'N/A')
-                ul_snr = test.get('uplinkSnr', 'N/A')
-                path_loss = test.get('pathloss', 'N/A')
-                rf_dist = test.get('rfLinkDistance', 0)
-                
-                result += f"  |  {i+1}   | {format_value(dl):^9} | {format_value(ul):^9} | {format_value(latency):^12} | {format_value(dl_snr):^6} | {format_value(ul_snr):^6} | {format_value(path_loss):^9} | {format_value(rf_dist):>5} m\n"
-            
-            # Divider
-            result += "  " + "-" * 81 + "\n"
-            
-            # Calculate and add average row
-            from ezSync.utils import calculate_average_speed_test_results
-            avg_results = calculate_average_speed_test_results(speed_results)
-            
-            dl_avg = avg_results.get('downlinkThroughput', 0) / 1000 if avg_results.get('downlinkThroughput') is not None else 0
-            ul_avg = avg_results.get('uplinkThroughput', 0) / 1000 if avg_results.get('uplinkThroughput') is not None else 0
-            latency_avg = avg_results.get('latencyMillis', 0)
-            dl_snr_avg = avg_results.get('downlinkSnr', 'N/A')
-            ul_snr_avg = avg_results.get('uplinkSnr', 'N/A')
-            path_loss_avg = avg_results.get('pathloss', 'N/A')
-            rf_dist_avg = avg_results.get('rfLinkDistance', 0)
-            
-            result += f"  |  Avg | {format_value(dl_avg):^9} | {format_value(ul_avg):^9} | {format_value(latency_avg):^12} | {format_value(dl_snr_avg):^6} | {format_value(ul_snr_avg):^6} | {format_value(path_loss_avg):^9} | {format_value(rf_dist_avg):>5} m\n"
-            
-            return result
-        
         # Print status for each radio
         for sn in serial_numbers:
             progress_str = get_progress_indicators(status_board[sn])
             sys.stdout.write(f"{sn}:  {progress_str}\n")
-            
-            # If this radio has speed test results, show them
-            if status_board[sn]['speed_results']:
-                sys.stdout.write(format_speed_test_results(status_board[sn]['speed_results']))
-                sys.stdout.write("\n")  # Add a blank line after results
         
         # Print legend
         sys.stdout.write("\nSteps: [1]=Connect [2]=Configure [3]=Reboot/Firmware [4]=Speed Test [5]=Final Config [✓]=Complete [✗]=Failed\n\n")
@@ -699,30 +644,6 @@ def refurbish_radios_parallel(serial_numbers, max_workers=5, skip_speedtest=Fals
             # Create a hook to track progress based on output
             def track_progress():
                 lines = captured_output.getvalue().splitlines()
-                
-                # Look for speed test results
-                if "INDIVIDUAL TESTS" in "".join(lines[-30:]):
-                    # Try to extract speed test results
-                    try:
-                        # Find all speed test results in the output
-                        speed_test_results = []
-                        speed_test_start = False
-                        
-                        for line in lines:
-                            if "INDIVIDUAL TESTS" in line:
-                                speed_test_start = True
-                            elif speed_test_start and "SUCCESS" in line and "Test" not in line:
-                                # This indicates we've reached the end of the speed test results
-                                break
-                            
-                        # If speed tests were found, tell the mp_refurbish_radio function to return them
-                        if speed_test_start:
-                            # Speed test results will be collected at the end
-                            pass
-                    except Exception as e:
-                        pass
-                
-                # Look for key progress indicators
                 for line in lines[-10:]:  # Look at recent lines
                     if "Waiting for radio" in line and "to connect" in line:
                         update_status(sn, step='connect', message="Waiting for connection")
@@ -776,20 +697,6 @@ def refurbish_radios_parallel(serial_numbers, max_workers=5, skip_speedtest=Fals
                 
                 # Final tracking update
                 track_progress()
-                
-                # Extract any speed test results
-                output = captured_output.getvalue()
-                if success and "INDIVIDUAL TESTS" in output:
-                    try:
-                        # Parse the speed test results by finding patterns in the output
-                        # This is a simplified approach - in a real implementation, you would 
-                        # modify the mp_refurbish_radio function to return the speed test results
-                        from ezSync.utils import parse_speed_test_results
-                        speed_results = parse_speed_test_results(output)
-                        update_status(sn, speed_results=speed_results)
-                    except Exception as e:
-                        # Failed to parse, continue without speed test results
-                        pass
                 
                 # Extract error message if failed
                 if not success:

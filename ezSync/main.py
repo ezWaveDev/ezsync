@@ -88,7 +88,8 @@ def main():
                 print("Firmware upgrade will be skipped during refurbishment")
             results = refurbish_radios_parallel(args.serial_numbers, max_workers=args.max_workers, 
                                                skip_speedtest=args.skip_speedtest, 
-                                               skip_firmware=args.skip_firmware)
+                                               skip_firmware=args.skip_firmware,
+                                               verbose=args.verbose)
             # The function handles its own output including the summary
         else:
             # Process radios sequentially (original behavior)

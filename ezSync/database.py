@@ -100,9 +100,11 @@ def get_customer_info(serial_number):
         address a ON c.id = a.idnum AND a.type = 6
     WHERE 
         c.id = (
-            SELECT statusDetail 
+            SELECT TOP 1 statusDetail 
             FROM velociter.dbo.Inventory_Record 
-            WHERE SerialNumber = ?
+            WHERE SerialNumber = ? 
+            AND MacAddress IS NOT NULL 
+            AND StatusEnum = 4
         );
     """
     

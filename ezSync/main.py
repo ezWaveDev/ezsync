@@ -5,6 +5,7 @@ This module provides the command-line interface for the application.
 
 import sys
 import argparse
+import logging
 
 from ezSync.api import delete_radios, get_radio_status, apply_default_config
 from ezSync.operations import (
@@ -79,29 +80,19 @@ def main():
     
     # Handle refurbishment operation
     if args.refurb:
+        failure_count = 0
+        
         if args.parallel:
-            # Process radios in parallel
-            print(f"Running refurbishment process in parallel with {args.max_workers} workers")
-            if args.skip_speedtest:
-                print("Speed tests will be skipped during refurbishment")
-            if args.skip_firmware:
-                print("Firmware upgrade will be skipped during refurbishment")
-            results = refurbish_radios_parallel(args.serial_numbers, max_workers=args.max_workers, 
-                                               skip_speedtest=args.skip_speedtest, 
-                                               skip_firmware=args.skip_firmware,
-                                               verbose=args.verbose)
-            # Set failure_count for consistent return code
-            failure_count = len(results.get('failure', []))
+            # Process refurbishment in parallel
+            print(f"Using parallel processing with {args.max_workers} workers")
+            failure_count = refurbish_radios_parallel(args.serial_numbers, skip_speedtest=args.skip_speedtest, skip_firmware=args.skip_firmware, verbose=args.verbose)
+            if failure_count > 0:
+                print(f"WARNING: {failure_count} radios failed refurbishment")
+                sys.exit(1)
         else:
-            # Process radios sequentially (original behavior)
+            # Process refurbishment sequentially
             success_count = 0
-            failure_count = 0
             
-            if args.skip_speedtest:
-                print("Speed tests will be skipped during refurbishment")
-            if args.skip_firmware:
-                print("Firmware upgrade will be skipped during refurbishment")
-                
             for serial_number in args.serial_numbers:
                 print(f"\n{'='*20} REFURBISHING RADIO: {serial_number} {'='*20}")
                 

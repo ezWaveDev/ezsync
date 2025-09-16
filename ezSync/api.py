@@ -8,7 +8,12 @@ import json
 import requests
 import urllib3
 import time
-from ezSync.config import TARANA_API_KEY, TARANA_RADIO_ENDPOINT
+from ezSync.config import (
+    TARANA_API_KEY,
+    TARANA_RADIO_ENDPOINT,
+    TARANA_V1_RADIOS_ENDPOINT,
+    TARANA_V1_OPERATIONS_ENDPOINT,
+)
 
 # Suppress SSL verification warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -120,8 +125,8 @@ def reconnect_radio(serial_number):
     
     headers = get_api_headers()
     
-    # Use the v1 endpoint directly as specified
-    reconnect_endpoint = f"https://api.trial.cloud.taranawireless.com/v1/network/radios/{serial_number}/reconnect"
+    # v1 endpoint from config
+    reconnect_endpoint = f"{TARANA_V1_RADIOS_ENDPOINT}/{serial_number}/reconnect"
     
     try:
         print(f"Attempting to reconnect radio: {serial_number}")
@@ -169,8 +174,8 @@ def delete_radios(serial_numbers):
     print("\nDelete Request payload:")
     print(json.dumps(data, indent=2))
     
-    # Use the v1 endpoint directly as specified
-    delete_endpoint = "https://api.trial.cloud.taranawireless.com/v1/network/radios/delete"
+    # v1 endpoint from config
+    delete_endpoint = f"{TARANA_V1_RADIOS_ENDPOINT}/delete"
     
     try:
         response = requests.post(
@@ -410,8 +415,8 @@ def initiate_speed_test(serial_number):
     
     headers = get_api_headers()
     
-    # Use the v1 endpoint directly as specified
-    speedtest_endpoint = f"https://api.trial.cloud.taranawireless.com/v1/network/radios/{serial_number}/speed-test"
+    # v1 endpoint from config
+    speedtest_endpoint = f"{TARANA_V1_RADIOS_ENDPOINT}/{serial_number}/speed-test"
     
     try:
         print(f"Initiating speed test for radio: {serial_number}")
@@ -461,8 +466,10 @@ def poll_speed_test_results(operation_id, serial_number, check_interval=20, max_
     
     headers = get_api_headers()
     
-    # Use the v1 endpoint directly as specified with serialNumber as query parameter
-    results_endpoint = f"https://api.trial.cloud.taranawireless.com/v1/operations/speed-test/id/{operation_id}?serialNumber={serial_number}"
+    # v1 endpoint from config with serialNumber as query parameter
+    results_endpoint = (
+        f"{TARANA_V1_OPERATIONS_ENDPOINT}/speed-test/id/{operation_id}?serialNumber={serial_number}"
+    )
     
     print(f"\nPolling for speed test results (Operation ID: {operation_id})")
     print(f"Will check every {check_interval} seconds (maximum {max_attempts} attempts)")
@@ -558,8 +565,8 @@ def reboot_radio(serial_number):
     
     headers = get_api_headers()
     
-    # Use the v1 endpoint directly as specified
-    reboot_endpoint = f"https://api.trial.cloud.taranawireless.com/v1/network/radios/{serial_number}/reboot"
+    # v1 endpoint from config
+    reboot_endpoint = f"{TARANA_V1_RADIOS_ENDPOINT}/{serial_number}/reboot"
     
     try:
         print(f"Attempting to reboot radio: {serial_number}")
@@ -601,8 +608,8 @@ def get_available_firmware_packages(rn_compatible=True, bn_compatible=False):
     
     headers = get_api_headers()
     
-    # Use the v1 endpoint directly
-    firmware_endpoint = f"https://api.trial.cloud.taranawireless.com/v1/network/radios/software-packages"
+    # v1 endpoint from config
+    firmware_endpoint = f"{TARANA_V1_RADIOS_ENDPOINT}/software-packages"
     
     # Add query parameters
     params = {
@@ -752,8 +759,8 @@ def upgrade_radio_firmware(serial_number, package_id=None, activate=True, factor
     
     headers = get_api_headers()
     
-    # Use the v1 endpoint directly
-    upgrade_endpoint = "https://api.trial.cloud.taranawireless.com/v1/network/radios/upgrade"
+    # v1 endpoint from config
+    upgrade_endpoint = f"{TARANA_V1_RADIOS_ENDPOINT}/upgrade"
     
     # Create request payload
     data = {

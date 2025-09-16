@@ -28,9 +28,16 @@ if not config_loaded:
     load_dotenv()
 
 # Tarana API Configuration
-TARANA_API_BASE_URL = "https://api.trial.cloud.taranawireless.com"
+# Base URL updated to new domain
+TARANA_API_BASE_URL = "https://api.tcs.taranawireless.com"
 TARANA_API_VERSION = "v2"
 TARANA_RADIO_ENDPOINT = f"{TARANA_API_BASE_URL}/{TARANA_API_VERSION}/network/radios"
+
+# v1 API base and common endpoints
+TARANA_API_V1_BASE_URL = f"{TARANA_API_BASE_URL}/v1"
+TARANA_V1_RADIOS_ENDPOINT = f"{TARANA_API_V1_BASE_URL}/network/radios"
+TARANA_V1_OPERATIONS_ENDPOINT = f"{TARANA_API_V1_BASE_URL}/operations"
+
 TARANA_API_KEY = os.getenv('TARANA_API_KEY')
 
 # Constants for RN configuration

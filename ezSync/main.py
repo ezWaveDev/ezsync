@@ -30,6 +30,7 @@ def main():
     parser.add_argument('--refurb', action='store_true', help='Perform full refurbishment process on radio(s)')
     parser.add_argument('--speedtest', action='store_true', help='Run a speed test on the radio')
     parser.add_argument('--deploy', action='store_true', help='Configure radio for customer deployment using database information')
+    parser.add_argument('--test-db', action='store_true', help='Test database connectivity and driver availability')
     parser.add_argument('--test', action='store_true', help='Run a mock test to verify parallel functionality')
     parser.add_argument('--findfix', action='store_true', help='Test multiple approaches to fix threading issues')
     parser.add_argument('--verbose', action='store_true', help='Show detailed debug information')
@@ -77,6 +78,21 @@ def main():
     if needs_api and not args.serial_numbers:
         print("Error: At least one serial number is required for this operation")
         sys.exit(1)
+    # Handle DB connectivity test
+    if args.test_db:
+        from ezSync.database import test_connection
+        ok, message = test_connection()
+        print(message)
+        if not ok:
+            # Provide concise macOS-specific guidance consistent with README
+            print("\nIf driver/pyodbc is missing on macOS, run:")
+            print("  brew install unixodbc")
+            print("  brew tap microsoft/mssql-release https://github.com/Microsoft/homebrew-mssql-release")
+            print("  brew update && brew install msodbcsql17 mssql-tools")
+            print("Then reinstall pyodbc in your active virtualenv: pip install --force-reinstall pyodbc")
+            sys.exit(1)
+        return
+
     
     # Handle refurbishment operation
     if args.refurb:

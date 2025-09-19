@@ -3,9 +3,16 @@ Database operations for the ezSync application.
 This module handles all database interactions.
 """
 
-import pyodbc
-from ezSync.config import DB_CONNECTION_STRING
 import socket
+from ezSync.config import DB_CONNECTION_STRING, PYODBC_IMPORT_ERROR
+
+# Optional import: only import pyodbc when actually used
+try:
+    import pyodbc  # type: ignore
+except Exception as _e:
+    pyodbc = None
+    if PYODBC_IMPORT_ERROR is None:
+        PYODBC_IMPORT_ERROR = _e  # Best-effort propagate
 
 def test_connection():
     """
@@ -16,6 +23,13 @@ def test_connection():
     """
     if not DB_CONNECTION_STRING:
         return False, "No database connection string configured"
+
+    if pyodbc is None:
+        return False, (
+            "pyodbc is not available. On macOS, per README, install prerequisites: "
+            "brew install unixodbc && brew tap microsoft/mssql-release https://github.com/Microsoft/homebrew-mssql-release && "
+            "brew update && brew install msodbcsql17 mssql-tools; then reinstall pyodbc in your active env."
+        )
     
     # Extract server info from connection string for diagnostics
     server_info = None
@@ -64,7 +78,8 @@ def test_connection():
         conn.close()
         
         return True, f"Connection successful! SQL Server version: {version}"
-    except pyodbc.Error as e:
+    except Exception as e:
+        # If pyodbc provided structured errors, surface them; else generic
         return False, f"Database connection error: {str(e)}"
     except Exception as e:
         return False, f"Unexpected error: {str(e)}"
@@ -103,11 +118,17 @@ def get_customer_info(serial_number):
             SELECT TOP 1 statusDetail 
             FROM velociter.dbo.Inventory_Record 
             WHERE SerialNumber = ? 
-            AND MacAddress IS NOT NULL 
+            AND MacAddress IS NOT NULL
             AND StatusEnum = 4
         );
     """
     
+    if pyodbc is None:
+        print(
+            "pyodbc is not available. Please install unixODBC and Microsoft ODBC Driver for SQL Server, then reinstall pyodbc."
+        )
+        return None
+
     try:
         conn = pyodbc.connect(DB_CONNECTION_STRING)
         cursor = conn.cursor()

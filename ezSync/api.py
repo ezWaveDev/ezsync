@@ -233,7 +233,6 @@ def apply_default_config(serial_number, custom_hostname=None):
         "latitude": 0,
         "longitude": 0,
         "dataVlan": "",
-        "primaryBn": "",
         "heightAgl": 0,
         "tilt": 0,
         "antennaAzimuth": 0,
@@ -308,7 +307,6 @@ def apply_refurb_config(serial_number, bn_info):
         "tilt": 0,
         "antennaAzimuth": azimuth,
         "hostName": "IN_REFURBISHMENT",
-        "primaryBn": "",
         "cpiId": cpi_id
     }
     
@@ -335,7 +333,7 @@ def apply_refurb_config(serial_number, bn_info):
         print(f"Error sending PATCH request: {str(e)}")
         return False
 
-def apply_deploy_config(serial_number, hostname, customer_lat, customer_lon, azimuth, primary_bn):
+def apply_deploy_config(serial_number, hostname, customer_lat, customer_lon, azimuth, primary_bn=None):
     """
     Apply customer-specific deployment configuration to a radio.
     
@@ -369,7 +367,6 @@ def apply_deploy_config(serial_number, hostname, customer_lat, customer_lon, azi
         "latitude": customer_lat,
         "longitude": customer_lon,
         "dataVlan": "",
-        "primaryBn": primary_bn,
         "heightAgl": 9,
         "tilt": 0,
         "antennaAzimuth": azimuth,

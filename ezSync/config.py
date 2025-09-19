@@ -1,5 +1,4 @@
 import os
-import pyodbc
 from dotenv import load_dotenv
 import sys
 from pathlib import Path
@@ -50,6 +49,14 @@ DB_NAME = os.getenv('DB_NAME')
 DB_USER = os.getenv('DB_USER')
 DB_PASSWORD = os.getenv('DB_PASSWORD')
 DB_PORT = os.getenv('DB_PORT', '1433')
+
+# Optional pyodbc import (lazy/optional per README)
+PYODBC_IMPORT_ERROR = None
+try:
+    import pyodbc as _pyodbc  # noqa: F401
+except Exception as _e:  # Capture any import/linker errors
+    _pyodbc = None
+    PYODBC_IMPORT_ERROR = _e
 
 def get_config_file_path():
     """
@@ -170,7 +177,16 @@ def setup_config():
     return TARANA_API_KEY is not None
 
 def get_latest_sql_driver():
-    drivers = pyodbc.drivers()
+    """
+    Return the newest installed SQL Server ODBC driver name, or None if unavailable.
+    Avoids hard dependency on pyodbc at import time.
+    """
+    if _pyodbc is None:
+        return None
+    try:
+        drivers = _pyodbc.drivers()
+    except Exception:
+        return None
     # Filter for SQL Server drivers and get the latest one
     sql_drivers = [d for d in drivers if 'SQL Server' in d]
     return sql_drivers[-1] if sql_drivers else None

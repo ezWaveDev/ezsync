@@ -38,6 +38,7 @@ ENV/
 
 # Logs
 *.log
+ezsync_log.txt
 
 # OS specific files
 .DS_Store

@@ -1205,11 +1205,7 @@ def deploy_radio(serial_number):
         # Fallback to ID only if no name is available
         hostname = f"CUSTOMER-{customer_id}"
 
-    # Step 6: Determine Primary BN
-    # Use the BN we're currently connected to
-    primary_bn = bn_data.get("serialNumber", "")
-
-    # Step 7: Apply deployment configuration
+    # Step 7: Apply deployment configuration (without primary BN)
     print(
         f"\nApplying deployment configuration for customer: {customer_name} (ID: {customer_id})"
     )
@@ -1223,7 +1219,6 @@ def deploy_radio(serial_number):
         customer_lat=float(customer_lat),
         customer_lon=float(customer_lon),
         azimuth=azimuth,
-        primary_bn=primary_bn,
     )
 
     if not success:
@@ -1233,7 +1228,7 @@ def deploy_radio(serial_number):
     print(f"\nSuccessfully configured radio {serial_number} for deployment")
     print(f"Hostname: {hostname}")
     print(f"Location: {customer_lat}, {customer_lon}")
-    print(f"Azimuth: {azimuth}° (pointing toward BN: {primary_bn})")
+    print(f"Azimuth: {azimuth}°")
 
     return True
 
